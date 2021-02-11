@@ -1,0 +1,5 @@
+<div *ngIf="iconProperties != null">
+  <div *ngFor="let item of iconProperties | keyvalue">
+    <b>{{item.key}}</b>: <b>{{item.value}}</b>
+  </div>
+</div>

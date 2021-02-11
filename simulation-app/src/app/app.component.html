@@ -1,4 +1,13 @@
 <div class="example-boundary">
   <ng-template #placeholder></ng-template>
 </div>
-<button (click)="createComponent('test')">Create</button>
+<div class="configuration">
+  <div class="properties">
+    <app-property-tab [iconProperties]="selectedIcon"></app-property-tab>
+  </div>
+  <div class="iconList">
+    <ng-container *ngFor="let icon of iconList">
+      <img draggable="false" [src]="icon.ava" (click)="createComponent(icon)">
+    </ng-container>
+  </div>
+</div>

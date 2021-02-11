@@ -1,5 +1,6 @@
-<div appDrawLine (result)="onHandleClick($event)" class="example-box" cdkDragBoundary=".example-boundary" cdkDrag>
-  Drag me around
+<div *ngIf="icon" appDrawLine (click)="onHandleClick($event)" class="example-box" cdkDragBoundary=".example-boundary"
+  cdkDrag>
+  <img draggable="false" [src]='icon.ava'>
   <div class="example-handle" cdkDragHandle>
     <svg width="24px" fill="currentColor" viewBox="0 0 24 24">
       <path

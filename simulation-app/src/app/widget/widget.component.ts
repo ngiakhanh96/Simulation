@@ -1,12 +1,11 @@
-import {
-  Component,
-  ElementRef,
-  EventEmitter,
-  Input,
-  OnInit,
-  Output,
-} from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { AppDrawLineResult } from '../directives/draw-line.directive';
+import { Icon } from '../icon-list';
+export interface WidgetInfo {
+  mouseEventInfo: AppDrawLineResult;
+  icon: Icon;
+  id: string;
+}
 
 @Component({
   selector: 'app-widget',
@@ -14,13 +13,18 @@ import { AppDrawLineResult } from '../directives/draw-line.directive';
   styleUrls: ['./widget.component.scss'],
 })
 export class WidgetComponent implements OnInit {
-  @Input() type: string = 'success';
-  @Output() output: EventEmitter<AppDrawLineResult> = new EventEmitter();
+  id: string = Date.now().toString();
+  @Input() icon: Icon | null = null;
+  @Output() output: EventEmitter<WidgetInfo> = new EventEmitter();
   constructor() {}
 
   ngOnInit(): void {}
 
   onHandleClick(result: AppDrawLineResult) {
-    this.output.emit(result);
+    this.output.emit({
+      icon: this.icon!,
+      mouseEventInfo: result,
+      id: this.id,
+    });
   }
 }

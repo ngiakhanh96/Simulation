@@ -8,7 +8,6 @@ import {
 
 export interface AppDrawLineResult {
   type: 'mousedown' | 'mouseup';
-  id: string;
   el: ElementRef;
 }
 
@@ -16,8 +15,7 @@ export interface AppDrawLineResult {
   selector: '[appDrawLine]',
 })
 export class DrawLineDirective {
-  id: string = Date.now().toString();
-  @Output() result: EventEmitter<AppDrawLineResult> = new EventEmitter();
+  @Output() click: EventEmitter<AppDrawLineResult> = new EventEmitter();
   constructor(private el: ElementRef) {}
   @HostListener('mousedown', ['$event'])
   onMouseDown(event: MouseEvent): void {
@@ -32,9 +30,8 @@ export class DrawLineDirective {
   }
 
   handleMouseAction(actionType: 'mousedown' | 'mouseup') {
-    this.result.emit({
+    this.click.emit({
       type: actionType,
-      id: this.id,
       el: this.el,
     });
   }

@@ -1,5 +1,5 @@
 .example-boundary {
-  height: 1000px;
+  height: 79vh;
   border: 1px solid red;
 }
 
@@ -27,4 +27,35 @@
   box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
     0 8px 10px 1px rgba(0, 0, 0, 0.14),
     0 3px 14px 2px rgba(0, 0, 0, 0.12);
+}
+
+.configuration {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+  height: 17vh;
+  >div {
+    width: 49%;
+    border: 1px solid;
+    overflow: auto;
+  }
+
+  .iconList {
+    display: flex;
+    flex-flow: row wrap;
+    justify-content: space-around;
+  }
+}
+
+.properties {
+  margin-right: 1%;
+}
+
+img {
+  width: 10%;
+  margin-left: 10%;
+  margin-right: 10%;
+  margin-top: 2%;
+  margin-bottom: 2%;
+  cursor: pointer;
 }
