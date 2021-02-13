@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { AppDrawLineResult } from '../directives/draw-line.directive';
+import { Utils } from '../helpers/Utils';
 import { Icon } from '../icon-list';
 export interface WidgetInfo {
   mouseEventInfo: AppDrawLineResult;
@@ -13,7 +14,8 @@ export interface WidgetInfo {
   styleUrls: ['./widget.component.scss'],
 })
 export class WidgetComponent implements OnInit {
-  id: string = Date.now().toString();
+  id: string = Utils.generateNewId();
+  @Input() dragPosition = { x: 0, y: 0 };
   @Input() icon: Icon | null = null;
   @Output() output: EventEmitter<WidgetInfo> = new EventEmitter();
   constructor() {}
@@ -21,6 +23,7 @@ export class WidgetComponent implements OnInit {
   ngOnInit(): void {}
 
   onHandleClick(result: AppDrawLineResult) {
+    console.log(this.dragPosition);
     this.output.emit({
       icon: this.icon!,
       mouseEventInfo: result,

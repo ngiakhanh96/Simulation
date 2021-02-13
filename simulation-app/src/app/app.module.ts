@@ -6,6 +6,7 @@ import { AppComponent } from './app.component';
 import { WidgetComponent } from './widget/widget.component';
 import { DrawLineDirective } from './directives/draw-line.directive';
 import { PropertyTabComponent } from './property-tab/property-tab.component';
+import { CdkScrollableModule } from '@angular/cdk/scrolling';
 
 @NgModule({
   declarations: [
@@ -14,7 +15,13 @@ import { PropertyTabComponent } from './property-tab/property-tab.component';
     DrawLineDirective,
     PropertyTabComponent,
   ],
-  imports: [BrowserModule, AppRoutingModule, DragDropModule],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    DragDropModule,
+    // TODO consider remove if not work
+    CdkScrollableModule,
+  ],
   providers: [],
   bootstrap: [AppComponent],
 })

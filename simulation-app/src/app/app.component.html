@@ -1,4 +1,7 @@
-<div class="example-boundary">
+<button class="deleteCon" (click)="onDeleteConnection()"> Delete connection: {{isDeletingConnectionMode}}</button>
+<button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon: {{isDeletingIconMode}}</button>
+
+<div class="example-boundary" cdkScrollable style="position: relative">
   <ng-template #placeholder></ng-template>
 </div>
 <div class="configuration">
