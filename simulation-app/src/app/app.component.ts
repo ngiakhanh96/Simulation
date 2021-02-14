@@ -55,12 +55,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   set selectingIconIds(v: string[]) {
-    if (v.length === 0) {
-      this._selectingIconIds.forEach((p) => {
-        this.componentDict[p].instance.isSelecting = false;
-      });
-    }
-    this._selectingIconIds = v;
+    this._selectingIconIds.forEach((p) => {
+      this.componentDict[p].instance.isSelecting = false;
+    });
+    this._selectingIconIds = [];
+    v.forEach((p) => this.addSelectingIconId(p));
   }
   private _isMultipleSelectingMode: boolean = false;
   get isMultipleSelectingMode(): boolean {
