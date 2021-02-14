@@ -1,7 +1,7 @@
 <button class="deleteCon" (click)="onDeleteConnection()"> Delete connection: {{isDeletingConnectionMode}}</button>
 <button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon: {{isDeletingIconMode}}</button>
 
-<div class="example-boundary" cdkScrollable style="position: relative">
+<div [class]="containerClassName" cdkScrollable>
   <ng-template #placeholder></ng-template>
 </div>
 <div class="configuration">
@@ -9,8 +9,8 @@
     <app-property-tab [iconProperties]="selectedIcon"></app-property-tab>
   </div>
   <div class="iconList">
-    <ng-container *ngFor="let icon of iconList">
-      <img draggable="false" [src]="icon.ava" (click)="createComponent(icon)">
+    <ng-container *ngFor="let icon of iconDict | keyvalue">
+      <img draggable="false" [src]="icon.value.ava" (click)="createComponent(null, icon.value)">
     </ng-container>
   </div>
 </div>

@@ -26,7 +26,7 @@ export const ICONS: Icon[] = [
   },
   {
     id: '14',
-    name: 'Bombasto',
+    name: 'Bombasto2',
     duration: 3000,
     ava: '../../assets/icons/machine.svg',
   },

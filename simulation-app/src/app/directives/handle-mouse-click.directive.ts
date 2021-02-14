@@ -6,16 +6,15 @@ import {
   Output,
 } from '@angular/core';
 
-export interface AppDrawLineResult {
+export interface MouseClickInfo {
   type: 'mousedown' | 'mouseup';
-  el: ElementRef;
 }
 
 @Directive({
-  selector: '[appDrawLine]',
+  selector: '[appHandleMouseClick]',
 })
-export class DrawLineDirective {
-  @Output() click: EventEmitter<AppDrawLineResult> = new EventEmitter();
+export class HandleMouseClickDirective {
+  @Output() click: EventEmitter<MouseClickInfo> = new EventEmitter();
   constructor(private el: ElementRef) {}
   @HostListener('mousedown', ['$event'])
   onMouseDown(event: MouseEvent): void {
@@ -32,7 +31,6 @@ export class DrawLineDirective {
   handleMouseAction(actionType: 'mousedown' | 'mouseup') {
     this.click.emit({
       type: actionType,
-      el: this.el,
     });
   }
 }

@@ -1,11 +1,21 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { AppDrawLineResult } from '../directives/draw-line.directive';
-import { Utils } from '../helpers/Utils';
+import { CdkDragEnd } from '@angular/cdk/drag-drop';
+import { ViewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  OnInit,
+  Output,
+} from '@angular/core';
+import { MouseClickInfo } from '../directives/handle-mouse-click.directive';
 import { Icon } from '../icon-list';
+import { ComponentLocation } from '../plant-model';
 export interface WidgetInfo {
-  mouseEventInfo: AppDrawLineResult;
+  mouseEventInfo: MouseClickInfo;
   icon: Icon;
   id: string;
+  elementRef: ElementRef<any>;
 }
 
 @Component({
@@ -14,20 +24,32 @@ export interface WidgetInfo {
   styleUrls: ['./widget.component.scss'],
 })
 export class WidgetComponent implements OnInit {
-  id: string = Utils.generateNewId();
-  @Input() dragPosition = { x: 0, y: 0 };
+  @ViewChild('widget', { read: ElementRef })
+  widgetRef: ElementRef<any> | null = null;
+  @Input() id: string = '';
+  @Input() dragPosition: ComponentLocation = { x: 0, y: 0 };
   @Input() icon: Icon | null = null;
+  @Input() containerSelector: string = '';
   @Output() output: EventEmitter<WidgetInfo> = new EventEmitter();
   constructor() {}
 
   ngOnInit(): void {}
 
-  onHandleClick(result: AppDrawLineResult) {
-    console.log(this.dragPosition);
+  onHandleClick(result: MouseClickInfo) {
+    console.log(
+      'onHandleClick: ' + this.dragPosition.x + ', ' + this.dragPosition.y
+    );
     this.output.emit({
-      icon: this.icon!,
       mouseEventInfo: result,
+      icon: this.icon!,
       id: this.id,
+      elementRef: this.widgetRef!,
     });
+  }
+
+  onDragEnd($event: CdkDragEnd) {
+    const currentDragPosition = $event.source.getFreeDragPosition();
+    this.dragPosition.x = currentDragPosition.x;
+    this.dragPosition.y = currentDragPosition.y;
   }
 }

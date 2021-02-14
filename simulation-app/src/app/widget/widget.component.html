@@ -1,5 +1,5 @@
-<div *ngIf="icon" appDrawLine (click)="onHandleClick($event)" class="example-box" cdkDrag
-  cdkDragBoundary=".example-boundary" [cdkDragFreeDragPosition]="dragPosition">
+<div #widget *ngIf="icon" appHandleMouseClick (click)="onHandleClick($event)" class="example-box" cdkDrag
+  [cdkDragBoundary]="containerSelector" [cdkDragFreeDragPosition]="dragPosition" (cdkDragEnded)="onDragEnd($event)">
   <img draggable="false" [src]='icon.ava'>
   <div class="example-handle" cdkDragHandle>
     <svg width="24px" fill="currentColor" viewBox="0 0 24 24">
