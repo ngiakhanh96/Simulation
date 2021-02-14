@@ -1,4 +1,5 @@
 import { OnInit } from '@angular/core';
+import { HostListener } from '@angular/core';
 import { AfterViewInit } from '@angular/core';
 import { OnDestroy } from '@angular/core';
 import {
@@ -10,6 +11,7 @@ import {
   ViewContainerRef,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
+import { KeyPressInfo } from './directives/handle-key-press-directive';
 import { Utils } from './helpers/Utils';
 import { Icon, ICONS } from './icon-list';
 import { ComponentLocation, PlantModel, PlantModel1 } from './plant-model';
@@ -22,10 +24,9 @@ export interface Connection {
   to: string | null;
   line: LineInfo | null;
 }
-
 export interface LineInfo {
-  lineId: string | null;
-  leaderLine: any;
+  lineId: string;
+  leaderLine: LeaderLine;
 }
 
 @Component({
@@ -48,26 +49,26 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   iconDict: Dictionary<Icon> = {};
   plantModel: PlantModel | null = null;
 
-  private _deletingConnectionFromComponent: string | null = null;
-  private _isDeletingConnectionMode: boolean = false;
-  get isDeletingConnectionMode(): boolean {
-    return this._isDeletingConnectionMode;
+  private _selectingIconIds: string[] = [];
+  get selectingIconIds(): string[] {
+    return this._selectingIconIds;
   }
 
-  set isDeletingConnectionMode(v: boolean) {
-    this._isDeletingConnectionMode = v;
-    if (!this._isDeletingConnectionMode) {
-      this._deletingConnectionFromComponent = null;
+  set selectingIconIds(v: string[]) {
+    if (v.length === 0) {
+      this._selectingIconIds.forEach((p) => {
+        this.componentDict[p].instance.isSelecting = false;
+      });
     }
+    this._selectingIconIds = v;
+  }
+  private _isMultipleSelectingMode: boolean = false;
+  get isMultipleSelectingMode(): boolean {
+    return this._isMultipleSelectingMode;
   }
 
-  private _isDeletingIconMode: boolean = false;
-  get isDeletingIconMode(): boolean {
-    return this._isDeletingIconMode;
-  }
-
-  set isDeletingIconMode(v: boolean) {
-    this._isDeletingIconMode = v;
+  set isMultipleSelectingMode(v: boolean) {
+    this._isMultipleSelectingMode = v;
   }
 
   constructor(private resolver: ComponentFactoryResolver) {}
@@ -103,15 +104,35 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onDeleteConnection() {
-    this.isDeletingConnectionMode = !this.isDeletingConnectionMode;
-    console.log(this.isDeletingConnectionMode);
-    this.isDeletingIconMode = false;
+    const toDeleteConnectionConditionFunc = (p: Connection) =>
+      p.from != null &&
+      p.to != null &&
+      this.selectingIconIds.includes(p.from) &&
+      this.selectingIconIds.includes(p.to);
+    const toDeleteConnections = this.connections.filter((p) =>
+      toDeleteConnectionConditionFunc(p)
+    );
+    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
+    this.connections = this.connections.filter(
+      (p) => !toDeleteConnectionConditionFunc(p)
+    );
   }
 
   onDeleteIcon() {
-    this.isDeletingIconMode = !this.isDeletingIconMode;
-    console.log(this.isDeletingIconMode);
-    this.isDeletingConnectionMode = false;
+    const toDeleteConnectionConditionFunc = (p: Connection) =>
+      p.from != null &&
+      p.to != null &&
+      (this.selectingIconIds.includes(p.from) ||
+        this.selectingIconIds.includes(p.to));
+    const toDeleteConnections = this.connections.filter((p) =>
+      toDeleteConnectionConditionFunc(p)
+    );
+    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
+    this.connections = this.connections.filter(
+      (p) => !toDeleteConnectionConditionFunc(p)
+    );
+    this.selectingIconIds.forEach((p) => this.componentDict[p].destroy());
+    this.selectingIconIds = [];
   }
 
   createComponent(
@@ -137,43 +158,24 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.mousedownId = null;
         }
         if (result.mouseEventInfo.type === 'mousedown') {
-          if (this.isDeletingConnectionMode) {
-            this._deletingConnectionFromComponent = result.id;
-          } else {
-            this.onMouseDownHandler(result);
-          }
+          this.onMouseDownHandler(result);
         } else {
-          if (this.isDeletingConnectionMode) {
-            if (this._deletingConnectionFromComponent) {
-              var index = this.connections.findIndex(
-                (p) =>
-                  p.from === this._deletingConnectionFromComponent &&
-                  p.to === result.id &&
-                  p.line != null
-              );
-              if (index > -1) {
-                this.connections[index].line!.leaderLine.remove();
-                this.connections.splice(index, 1);
-              }
-              this._deletingConnectionFromComponent = null;
-            }
-          } else if (this.isDeletingIconMode) {
-            this.connections.forEach((p) => {
-              if (p.from === result.id || p.to === result.id) {
-                p.line?.leaderLine.remove();
-              }
-            });
-            this.connections = this.connections.filter(
-              (p) => p.from !== result.id && p.to !== result.id
-            );
-            this.componentDict[result.id].destroy();
-            delete this.componentDict[result.id];
-          } else {
-            this.onMouseUpHandler(result);
-          }
+          this.onMouseUpHandler(result);
         }
       })
     );
+  }
+
+  @HostListener('mouseup', ['$event'])
+  onMouseDown(event: MouseEvent): void {
+    console.log('parent: ' + event);
+    if ((event.target as any).nodeName !== 'BUTTON') {
+      this.selectingIconIds = [];
+    }
+  }
+
+  onKeyPress($event: KeyPressInfo) {
+    this.isMultipleSelectingMode = $event.type === 'keydown' ? true : false;
   }
 
   onMouseDownHandler(result: WidgetInfo) {
@@ -195,23 +197,36 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   onMouseUpHandler(result: WidgetInfo) {
     const index = this.connections.findIndex((p) => p.to == null);
-    if (index > -1 && this.connections[index].from !== result.id) {
-      this.connections[index].elTo = result.elementRef;
-      this.connections[index].to = result.id;
-      var line = this.createNewConnector(
-        this.connections[index].elFrom!.nativeElement,
-        this.connections[index].elTo!.nativeElement
-      );
-      this.connections[index].line = <LineInfo>{
-        lineId: Utils.generateNewId(),
-        leaderLine: line,
-      };
+    if (index > -1) {
+      if (this.connections[index].from === result.id) {
+        if (!this.isMultipleSelectingMode) {
+          this.selectingIconIds = [];
+        }
+        this.addSelectingIconId(result.id);
+      } else {
+        this.connections[index].elTo = result.elementRef;
+        this.connections[index].to = result.id;
+        var line = this.createNewConnector(
+          this.connections[index].elFrom!.nativeElement,
+          this.connections[index].elTo!.nativeElement
+        );
+        this.connections[index].line = <LineInfo>{
+          lineId: Utils.generateNewId(),
+          leaderLine: line,
+        };
+      }
     }
+
     this.connections = this.connections.filter(
       (p) => p.from != null && p.to != null
     );
     this.selectedIcon = result.icon;
     this.reRenderLines();
+  }
+
+  addSelectingIconId(id: string) {
+    this.selectingIconIds.push(id);
+    this.componentDict[id].instance.isSelecting = true;
   }
 
   reRenderLines() {

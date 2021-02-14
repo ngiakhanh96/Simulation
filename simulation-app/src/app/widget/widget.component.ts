@@ -30,6 +30,7 @@ export class WidgetComponent implements OnInit {
   @Input() dragPosition: ComponentLocation = { x: 0, y: 0 };
   @Input() icon: Icon | null = null;
   @Input() containerSelector: string = '';
+  @Input() isSelecting: boolean = false;
   @Output() output: EventEmitter<WidgetInfo> = new EventEmitter();
   constructor() {}
 

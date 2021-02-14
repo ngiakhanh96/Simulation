@@ -7,12 +7,14 @@ import { WidgetComponent } from './widget/widget.component';
 import { HandleMouseClickDirective } from './directives/handle-mouse-click.directive';
 import { PropertyTabComponent } from './property-tab/property-tab.component';
 import { CdkScrollableModule } from '@angular/cdk/scrolling';
+import { HandleKeyPressDirective } from './directives/handle-key-press-directive';
 
 @NgModule({
   declarations: [
     AppComponent,
     WidgetComponent,
     HandleMouseClickDirective,
+    HandleKeyPressDirective,
     PropertyTabComponent,
   ],
   imports: [

@@ -1,7 +1,7 @@
-<button class="deleteCon" (click)="onDeleteConnection()"> Delete connection: {{isDeletingConnectionMode}}</button>
-<button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon: {{isDeletingIconMode}}</button>
+<button class="deleteCon" (click)="onDeleteConnection()"> Delete connection</button>
+<button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon</button>
 
-<div [class]="containerClassName" cdkScrollable>
+<div [class]="containerClassName" cdkScrollable appHandleKeyPress="Control" (keyPress)="onKeyPress($event)">
   <ng-template #placeholder></ng-template>
 </div>
 <div class="configuration">

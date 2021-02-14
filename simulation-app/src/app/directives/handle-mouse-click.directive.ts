@@ -20,12 +20,14 @@ export class HandleMouseClickDirective {
   onMouseDown(event: MouseEvent): void {
     this.handleMouseAction('mousedown');
     console.log(event);
+    event.stopPropagation();
   }
 
   @HostListener('mouseup', ['$event'])
   onMouseUp(event: MouseEvent): void {
     this.handleMouseAction('mouseup');
     console.log(event);
+    event.stopPropagation();
   }
 
   handleMouseAction(actionType: 'mousedown' | 'mouseup') {
