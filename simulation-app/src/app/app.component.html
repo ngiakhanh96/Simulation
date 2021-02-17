@@ -1,8 +1,11 @@
 <button class="deleteCon" (click)="onDeleteConnection()"> Delete connection</button>
 <button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon</button>
 
-<div [class]="containerClassName" cdkScrollable appHandleKeyPress="Control" (keyPress)="onKeyPress($event)">
+<div (window:resize)="onResizeCanvas()" #mainContainer [class]="containerClassName" cdkScrollable
+  appHandleKeyPress="Control" (keyPress)="onKeyPress($event)">
   <ng-template #placeholder></ng-template>
+  <canvas #canvas>
+  </canvas>
 </div>
 <div class="configuration">
   <div class="properties">

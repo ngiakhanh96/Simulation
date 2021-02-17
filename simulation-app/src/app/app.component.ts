@@ -1,7 +1,10 @@
-import { OnInit } from '@angular/core';
-import { HostListener } from '@angular/core';
-import { AfterViewInit } from '@angular/core';
-import { OnDestroy } from '@angular/core';
+import {
+  NgZone,
+  OnInit,
+  OnDestroy,
+  HostListener,
+  AfterViewInit,
+} from '@angular/core';
 import {
   Component,
   ComponentFactoryResolver,
@@ -17,6 +20,10 @@ import { Icon, ICONS } from './icon-list';
 import { ComponentLocation, PlantModel, PlantModel1 } from './plant-model';
 import { WidgetComponent, WidgetInfo } from './widget/widget.component';
 
+export interface Point {
+  x: number;
+  y: number;
+}
 export interface Connection {
   elFrom: ElementRef | null;
   from: string | null;
@@ -28,6 +35,120 @@ export interface LineInfo {
   lineId: string;
   leaderLine: LeaderLine;
 }
+export class Square {
+  private color = 'red';
+  private motionPoint: Point = { x: 0, y: 0 };
+  private distance: number = 10;
+
+  constructor(
+    private ctx: CanvasRenderingContext2D,
+    private startPoint: Point = { x: 500, y: 300 },
+    private endPoint: Point = { x: 400, y: 100 }
+  ) {}
+
+  private calculateMotionPointY() {
+    if (this.endPoint.y >= this.startPoint.y) {
+      if (this.motionPoint.y < this.endPoint.y) {
+        this.motionPoint.y++;
+      } else {
+        this.motionPoint.y = this.endPoint.y;
+      }
+    } else {
+      if (this.motionPoint.y > this.endPoint.y) {
+        this.motionPoint.y--;
+      } else {
+        this.motionPoint.y = this.endPoint.y;
+      }
+    }
+  }
+
+  private calculateMotionPointX() {
+    if (this.endPoint.x >= this.startPoint.x) {
+      if (this.motionPoint.x < this.endPoint.x) {
+        this.motionPoint.x++;
+      } else {
+        this.motionPoint.x = this.endPoint.x;
+      }
+    } else {
+      if (this.motionPoint.x > this.endPoint.x) {
+        this.motionPoint.x--;
+      } else {
+        this.motionPoint.x = this.endPoint.x;
+      }
+    }
+  }
+
+  draw() {
+    this.ctx.fillStyle = this.color;
+    const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
+    const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
+    this.ctx.moveTo(this.startPoint.x, this.startPoint.y);
+    if (deltaX >= deltaY) {
+      this.ctx.lineTo(this.endPoint.x, this.startPoint.y);
+      this.ctx.moveTo(this.endPoint.x, this.startPoint.y);
+      if (
+        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
+        (this.motionPoint.x ===
+          (this.endPoint.x >= this.startPoint.x
+            ? this.endPoint.x + this.distance
+            : this.endPoint.x - this.distance - 5) &&
+          this.motionPoint.y === this.endPoint.y)
+      ) {
+        this.motionPoint.x = this.startPoint.x;
+        if (this.endPoint.y >= this.startPoint.y) {
+          this.motionPoint.y = this.startPoint.y - this.distance - 5;
+        } else {
+          this.motionPoint.y = this.startPoint.y + this.distance;
+        }
+      } else if (this.endPoint.x >= this.startPoint.x) {
+        if (this.motionPoint.x < this.endPoint.x + this.distance) {
+          this.motionPoint.x++;
+        } else {
+          this.calculateMotionPointY();
+        }
+      } else {
+        if (this.motionPoint.x > this.endPoint.x - this.distance - 5) {
+          this.motionPoint.x--;
+        } else {
+          this.calculateMotionPointY();
+        }
+      }
+    } else {
+      this.ctx.lineTo(this.startPoint.x, this.endPoint.y);
+      this.ctx.moveTo(this.startPoint.x, this.endPoint.y);
+      if (
+        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
+        (this.motionPoint.y ===
+          (this.endPoint.y >= this.startPoint.y
+            ? this.endPoint.y - this.distance - 5
+            : this.endPoint.y + this.distance) &&
+          this.motionPoint.x === this.endPoint.x)
+      ) {
+        this.motionPoint.y = this.startPoint.y;
+        if (this.startPoint.x >= this.endPoint.x) {
+          this.motionPoint.x = this.startPoint.x - this.distance - 5;
+        } else {
+          this.motionPoint.x = this.startPoint.x + this.distance;
+        }
+      } else if (this.endPoint.y >= this.startPoint.y) {
+        if (this.motionPoint.y < this.endPoint.y - this.distance - 5) {
+          this.motionPoint.y++;
+        } else {
+          this.calculateMotionPointX();
+        }
+      } else {
+        if (this.motionPoint.y > this.endPoint.y + this.distance) {
+          this.motionPoint.y--;
+        } else {
+          this.calculateMotionPointX();
+        }
+      }
+    }
+    this.ctx.lineTo(this.endPoint.x, this.endPoint.y);
+    this.ctx.stroke();
+    this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
+  }
+}
 
 @Component({
   selector: 'app-root',
@@ -37,6 +158,15 @@ export interface LineInfo {
 export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('placeholder', { read: ViewContainerRef, static: true })
   container!: ViewContainerRef;
+
+  @ViewChild('mainContainer', { static: true })
+  mainContainer!: ElementRef<HTMLDivElement>;
+
+  @ViewChild('canvas', { static: true })
+  canvasArea!: ElementRef<HTMLCanvasElement>;
+
+  canvasCtx: CanvasRenderingContext2D | null = null;
+  reRenderCanvasId: NodeJS.Timeout | null = null;
 
   containerClassName: string = 'example-boundary';
 
@@ -70,7 +200,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this._isMultipleSelectingMode = v;
   }
 
-  constructor(private resolver: ComponentFactoryResolver) {}
+  private squares: Square[] = [];
+  constructor(
+    private resolver: ComponentFactoryResolver,
+    private ngZone: NgZone
+  ) {}
   ngOnInit(): void {
     this.iconDict = Utils.toDictionary(ICONS, (p) => p.id);
     this.plantModel = PlantModel1;
@@ -99,7 +233,35 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           },
         };
       });
+
+      this.canvasCtx = this.canvasArea.nativeElement.getContext('2d')!;
+      this.canvasCtx.fillStyle = 'red';
+      this.squares = [new Square(this.canvasCtx!)];
+      this.onResizeCanvas();
     });
+  }
+
+  reDrawCanvas() {
+    this.ngZone.runOutsideAngular(() => {
+      clearInterval(this.reRenderCanvasId!);
+      this.reRenderCanvasId = setInterval(() => {
+        this.canvasCtx!.clearRect(
+          0,
+          0,
+          this.canvasCtx!.canvas.width,
+          this.canvasCtx!.canvas.height
+        );
+        this.squares.forEach((square: Square) => {
+          square.draw();
+        });
+      }, 10);
+    });
+  }
+
+  onResizeCanvas() {
+    this.canvasCtx!.canvas.width = this.mainContainer!.nativeElement.offsetWidth;
+    this.canvasCtx!.canvas.height = this.mainContainer!.nativeElement.offsetHeight;
+    this.reDrawCanvas();
   }
 
   onDeleteConnection() {
@@ -152,10 +314,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.componentsSubs.push(
       this.componentRef.instance.output.subscribe((result: WidgetInfo) => {
         console.log(result);
-        if (this.mousedownId != null) {
-          clearInterval(this.mousedownId);
-          this.mousedownId = null;
-        }
+        clearInterval(this.mousedownId!);
+
         if (result.mouseEventInfo.type === 'mousedown') {
           this.onMouseDownHandler(result);
         } else {
@@ -189,9 +349,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       line: null,
     });
 
-    this.mousedownId = setInterval(() => {
-      this.reRenderLines();
-    }, 50);
+    this.ngZone.runOutsideAngular(() => {
+      this.mousedownId = setInterval(() => {
+        this.reRenderLines();
+      }, 50);
+    });
   }
 
   onMouseUpHandler(result: WidgetInfo) {
@@ -245,5 +407,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy() {
     this.componentRef.destroy();
     this.componentsSubs.forEach((p) => p.unsubscribe());
+    clearInterval(this.mousedownId!);
+    clearInterval(this.reRenderCanvasId!);
   }
 }
