@@ -1,6 +1,6 @@
 <button class="deleteCon" (click)="onDeleteConnection()"> Delete connection</button>
 <button class="deleteIcon" (click)="onDeleteIcon()"> Delete icon</button>
-
+<button class="reDirectCon" (click)="onRedirectConnection()"> Redirect connection</button>
 <div (window:resize)="onResizeCanvas()" #mainContainer [class]="containerClassName" cdkScrollable
   appHandleKeyPress="Control" (keyPress)="onKeyPress($event)">
   <ng-template #placeholder></ng-template>

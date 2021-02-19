@@ -34,17 +34,27 @@ export interface Connection {
 export interface LineInfo {
   lineId: string;
   leaderLine: LeaderLine;
+  square: Square;
 }
 export class Square {
   private color = 'red';
   private motionPoint: Point = { x: 0, y: 0 };
-  private distance: number = 10;
+  private startPoint: Point = { x: 500, y: 300 };
+  private endPoint: Point = { x: 400, y: 100 };
+
 
   constructor(
     private ctx: CanvasRenderingContext2D,
-    private startPoint: Point = { x: 500, y: 300 },
-    private endPoint: Point = { x: 400, y: 100 }
-  ) {}
+    private startComponent: ComponentRef<WidgetComponent>,
+    private endComponent: ComponentRef<WidgetComponent>,
+    private componentWidth: number,
+    private componentHeight: number,
+    public distance: number = 10,
+    public image: HTMLImageElement = new Image,
+    public followXAxis?: boolean
+  ) {
+    this.rePosition();
+  }
 
   private calculateMotionPointY() {
     if (this.endPoint.y >= this.startPoint.y) {
@@ -78,14 +88,35 @@ export class Square {
     }
   }
 
+  rePosition() {
+    this.startPoint.x = this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.startPoint.y = this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
+    this.endPoint.x  = this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.endPoint.y  = this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
+    this.motionPoint = { x: 0, y: 0 };
+  }
+
   draw() {
     this.ctx.fillStyle = this.color;
     const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
     const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
+    this.ctx.beginPath();
     this.ctx.moveTo(this.startPoint.x, this.startPoint.y);
-    if (deltaX >= deltaY) {
-      this.ctx.lineTo(this.endPoint.x, this.startPoint.y);
-      this.ctx.moveTo(this.endPoint.x, this.startPoint.y);
+    const followXAxis = this.followXAxis == null || deltaX === 0 || deltaY === 0
+      ? deltaX >= deltaY
+      : this.followXAxis;
+    let immediatePoint: Point = {x: this.startPoint.x, y: this.startPoint.y};
+    if (followXAxis) {
+      if (this.startPoint.y === this.endPoint.y) {
+
+      } else {
+        this.ctx.lineTo(this.endPoint.x, this.startPoint.y);
+        immediatePoint = {
+          x: this.endPoint.x,
+          y: this.startPoint.y
+        };
+      }
+
       if (
         (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
         (this.motionPoint.x ===
@@ -114,8 +145,15 @@ export class Square {
         }
       }
     } else {
-      this.ctx.lineTo(this.startPoint.x, this.endPoint.y);
-      this.ctx.moveTo(this.startPoint.x, this.endPoint.y);
+      if (this.startPoint.x === this.endPoint.x) {
+
+      } else {
+        this.ctx.lineTo(this.startPoint.x, this.endPoint.y);
+        immediatePoint = {
+          x: this.startPoint.x,
+          y: this.endPoint.y
+        };
+      }
       if (
         (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
         (this.motionPoint.y ===
@@ -144,9 +182,56 @@ export class Square {
         }
       }
     }
-    this.ctx.lineTo(this.endPoint.x, this.endPoint.y);
+
+    let toX = this.endPoint.x;
+    let toY = this.endPoint.y;
+    if (followXAxis) {
+      if (this.startPoint.y === this.endPoint.y) {
+        if (this.endPoint.x >= this.startPoint.x) {
+          toX = this.endPoint.x - this.componentWidth/2;
+        } else {
+          toX = this.endPoint.x + this.componentWidth/2;
+        }
+      } else {
+        if (this.endPoint.y >= this.startPoint.y) {
+          toY = this.endPoint.y - this.componentHeight/2;
+        } else {
+          toY = this.endPoint.y + this.componentHeight/2;
+        }
+      }
+
+    } else {
+      if (this.startPoint.x === this.endPoint.x) {
+        if (this.endPoint.y >= this.startPoint.y) {
+          toY = this.endPoint.y - this.componentHeight/2;
+        } else {
+          toY = this.endPoint.y + this.componentHeight/2;
+        }
+      } else {
+        if (this.endPoint.x >= this.startPoint.x) {
+          toX = this.endPoint.x - this.componentWidth/2;
+        } else {
+          toX = this.endPoint.x + this.componentWidth/2;
+        }
+      }
+    }
+    this.drawArrow(immediatePoint.x, immediatePoint.y, toX, toY);
     this.ctx.stroke();
-    this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
+    this.image.src = '../assets/icons/conveyor.svg';
+    this.ctx.drawImage(this.image, this.motionPoint.x, this.motionPoint.y, 10, 10)
+    // this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
+  }
+
+  drawArrow(fromx: number, fromy: number, tox: number, toy: number) {
+    var headlen = 10; // length of head in pixels
+    var dx = tox - fromx;
+    var dy = toy - fromy;
+    var angle = Math.atan2(dy, dx);
+    this.ctx.moveTo(fromx, fromy);
+    this.ctx.lineTo(tox, toy);
+    this.ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+    this.ctx.moveTo(tox, toy);
+    this.ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
   }
 }
 
@@ -200,11 +285,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this._isMultipleSelectingMode = v;
   }
 
-  private squares: Square[] = [];
   constructor(
     private resolver: ComponentFactoryResolver,
     private ngZone: NgZone
   ) {}
+
   ngOnInit(): void {
     this.iconDict = Utils.toDictionary(ICONS, (p) => p.id);
     this.plantModel = PlantModel1;
@@ -216,9 +301,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    this.canvasCtx = this.canvasArea.nativeElement.getContext('2d')!;
+    this.canvasCtx.fillStyle = 'red';
     setTimeout(() => {
       const plantConnections = this.plantModel!.plantConnections;
       this.connections = plantConnections.map((p) => {
+        const square = new Square(
+          this.canvasCtx!,
+          this.componentDict[p.from],
+          this.componentDict[p.to],
+          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetWidth,
+          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetHeight);
         return <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
@@ -230,13 +323,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
               this.componentDict[p.from].instance.widgetRef!.nativeElement,
               this.componentDict[p.to].instance.widgetRef!.nativeElement
             ),
+            square: square
           },
         };
       });
 
-      this.canvasCtx = this.canvasArea.nativeElement.getContext('2d')!;
-      this.canvasCtx.fillStyle = 'red';
-      this.squares = [new Square(this.canvasCtx!)];
       this.onResizeCanvas();
     });
   }
@@ -244,6 +335,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   reDrawCanvas() {
     this.ngZone.runOutsideAngular(() => {
       clearInterval(this.reRenderCanvasId!);
+      const squares = this.connections.filter(p => p.line != null).map(p => p.line!.square);
+      squares.forEach((square: Square) => {
+        square.rePosition();
+      });
       this.reRenderCanvasId = setInterval(() => {
         this.canvasCtx!.clearRect(
           0,
@@ -251,7 +346,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!.canvas.width,
           this.canvasCtx!.canvas.height
         );
-        this.squares.forEach((square: Square) => {
+        squares.forEach((square: Square) => {
           square.draw();
         });
       }, 10);
@@ -277,6 +372,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
+    this.reDrawCanvas();
   }
 
   onDeleteIcon() {
@@ -294,6 +390,25 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     this.selectingIconIds.forEach((p) => this.componentDict[p].destroy());
     this.selectingIconIds = [];
+    this.reDrawCanvas();
+  }
+
+  onRedirectConnection() {
+    const toRedirectConnectionConditionFunc = (p: Connection) =>
+      p.from != null &&
+      p.to != null &&
+      this.selectingIconIds.includes(p.from) &&
+      this.selectingIconIds.includes(p.to);
+
+    const toRedirectConnections = this.connections.filter((p) =>
+      toRedirectConnectionConditionFunc(p)
+    );
+    toRedirectConnections.forEach((p) => {
+      if (p.line) {
+        p.line.square.followXAxis = !p.line.square.followXAxis;
+      }
+      });
+    this.reDrawCanvas();
   }
 
   createComponent(
@@ -367,13 +482,20 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.connections[index].elTo = result.elementRef;
         this.connections[index].to = result.id;
-        var line = this.createNewConnector(
+        const line = this.createNewConnector(
           this.connections[index].elFrom!.nativeElement,
           this.connections[index].elTo!.nativeElement
         );
+        const square = new Square(
+          this.canvasCtx!,
+          this.componentDict[this.connections[index].from!],
+          this.componentDict[this.connections[index].to!],
+          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetWidth,
+          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetHeight);
         this.connections[index].line = <LineInfo>{
           lineId: Utils.generateNewId(),
           leaderLine: line,
+          square: square
         };
       }
     }
@@ -396,11 +518,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       .forEach((p) => {
         p.line!.leaderLine.position();
       });
+    this.reDrawCanvas();
   }
 
   createNewConnector(startElement: Element, endElement: Element): LeaderLine {
     return new LeaderLine(startElement, endElement, {
       dash: { animation: true },
+      path: 'grid'
     });
   }
 

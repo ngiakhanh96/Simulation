@@ -17,6 +17,10 @@
   position: absolute;
 }
 
+.example-box:hover {
+  visibility: hidden;
+}
+
 .is-selecting {
   border: 1px solid black;
 }
