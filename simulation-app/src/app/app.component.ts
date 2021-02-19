@@ -42,7 +42,6 @@ export class Square {
   private startPoint: Point = { x: 500, y: 300 };
   private endPoint: Point = { x: 400, y: 100 };
 
-
   constructor(
     private ctx: CanvasRenderingContext2D,
     private startComponent: ComponentRef<WidgetComponent>,
@@ -50,7 +49,7 @@ export class Square {
     private componentWidth: number,
     private componentHeight: number,
     public distance: number = 10,
-    public image: HTMLImageElement = new Image,
+    public image: HTMLImageElement = new Image(),
     public followXAxis?: boolean
   ) {
     this.rePosition();
@@ -89,137 +88,237 @@ export class Square {
   }
 
   rePosition() {
-    this.startPoint.x = this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.startPoint.y = this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.endPoint.x  = this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.endPoint.y  = this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
+    this.startPoint.x =
+      this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.startPoint.y =
+      this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
+    this.endPoint.x =
+      this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.endPoint.y =
+      this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
     this.motionPoint = { x: 0, y: 0 };
   }
 
   draw() {
     this.ctx.fillStyle = this.color;
+    const xDistance = this.endPoint.x - this.startPoint.x;
+    const yDistance = this.endPoint.y - this.startPoint.y;
+
+    const moveDown = yDistance === 0 ? null : yDistance > 0;
+    const moveRight = xDistance === 0 ? null : xDistance > 0;
+
     const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
     const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+    const chosenFollowXAxis =
+      this.followXAxis == null ||
+      deltaX <= this.componentWidth / 2 ||
+      deltaY <= this.componentHeight / 2
+        ? deltaX >= deltaY
+        : this.followXAxis;
+
+    let constructedPoints: Point[] = [];
+    let immediatePoint: Point = { x: this.startPoint.x, y: this.startPoint.y };
     this.ctx.beginPath();
-    this.ctx.moveTo(this.startPoint.x, this.startPoint.y);
-    const followXAxis = this.followXAxis == null || deltaX === 0 || deltaY === 0
-      ? deltaX >= deltaY
-      : this.followXAxis;
-    let immediatePoint: Point = {x: this.startPoint.x, y: this.startPoint.y};
-    if (followXAxis) {
-      if (this.startPoint.y === this.endPoint.y) {
-
-      } else {
-        this.ctx.lineTo(this.endPoint.x, this.startPoint.y);
-        immediatePoint = {
-          x: this.endPoint.x,
-          y: this.startPoint.y
-        };
+    if (chosenFollowXAxis) {
+      constructedPoints.push({
+        x: Math.round(
+          moveRight
+            ? this.startPoint.x + this.componentWidth / 2
+            : this.startPoint.x - this.componentWidth / 2
+        ),
+        y: this.startPoint.y,
+      });
+      if (moveDown != null) {
+        if (deltaY <= this.componentHeight / 2) {
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        } else {
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        }
       }
 
-      if (
-        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-        (this.motionPoint.x ===
-          (this.endPoint.x >= this.startPoint.x
-            ? this.endPoint.x + this.distance
-            : this.endPoint.x - this.distance - 5) &&
-          this.motionPoint.y === this.endPoint.y)
-      ) {
-        this.motionPoint.x = this.startPoint.x;
-        if (this.endPoint.y >= this.startPoint.y) {
-          this.motionPoint.y = this.startPoint.y - this.distance - 5;
-        } else {
-          this.motionPoint.y = this.startPoint.y + this.distance;
-        }
-      } else if (this.endPoint.x >= this.startPoint.x) {
-        if (this.motionPoint.x < this.endPoint.x + this.distance) {
-          this.motionPoint.x++;
-        } else {
-          this.calculateMotionPointY();
-        }
-      } else {
-        if (this.motionPoint.x > this.endPoint.x - this.distance - 5) {
-          this.motionPoint.x--;
-        } else {
-          this.calculateMotionPointY();
-        }
-      }
+      // if (
+      //   (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
+      //   (this.motionPoint.x ===
+      //     (this.endPoint.x >= this.startPoint.x
+      //       ? this.endPoint.x + this.distance
+      //       : this.endPoint.x - this.distance - 5) &&
+      //     this.motionPoint.y === this.endPoint.y)
+      // ) {
+      //   this.motionPoint.x = this.startPoint.x;
+      //   if (this.endPoint.y >= this.startPoint.y) {
+      //     this.motionPoint.y = this.startPoint.y - this.distance - 5;
+      //   } else {
+      //     this.motionPoint.y = this.startPoint.y + this.distance;
+      //   }
+      // } else if (this.endPoint.x >= this.startPoint.x) {
+      //   if (this.motionPoint.x < this.endPoint.x + this.distance) {
+      //     this.motionPoint.x++;
+      //   } else {
+      //     this.calculateMotionPointY();
+      //   }
+      // } else {
+      //   if (this.motionPoint.x > this.endPoint.x - this.distance - 5) {
+      //     this.motionPoint.x--;
+      //   } else {
+      //     this.calculateMotionPointY();
+      //   }
+      // }
     } else {
-      if (this.startPoint.x === this.endPoint.x) {
-
-      } else {
-        this.ctx.lineTo(this.startPoint.x, this.endPoint.y);
-        immediatePoint = {
-          x: this.startPoint.x,
-          y: this.endPoint.y
-        };
+      constructedPoints.push({
+        x: this.startPoint.x,
+        y: Math.round(
+          moveDown
+            ? this.startPoint.y + this.componentHeight / 2
+            : this.startPoint.y - this.componentHeight / 2
+        ),
+      });
+      if (moveRight != null) {
+        if (deltaX <= this.componentWidth / 2) {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        } else {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        }
       }
-      if (
-        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-        (this.motionPoint.y ===
-          (this.endPoint.y >= this.startPoint.y
-            ? this.endPoint.y - this.distance - 5
-            : this.endPoint.y + this.distance) &&
-          this.motionPoint.x === this.endPoint.x)
-      ) {
-        this.motionPoint.y = this.startPoint.y;
-        if (this.startPoint.x >= this.endPoint.x) {
-          this.motionPoint.x = this.startPoint.x - this.distance - 5;
-        } else {
-          this.motionPoint.x = this.startPoint.x + this.distance;
-        }
-      } else if (this.endPoint.y >= this.startPoint.y) {
-        if (this.motionPoint.y < this.endPoint.y - this.distance - 5) {
-          this.motionPoint.y++;
-        } else {
-          this.calculateMotionPointX();
-        }
-      } else {
-        if (this.motionPoint.y > this.endPoint.y + this.distance) {
-          this.motionPoint.y--;
-        } else {
-          this.calculateMotionPointX();
-        }
-      }
+      // if (
+      //   (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
+      //   (this.motionPoint.y ===
+      //     (this.endPoint.y >= this.startPoint.y
+      //       ? this.endPoint.y - this.distance - 5
+      //       : this.endPoint.y + this.distance) &&
+      //     this.motionPoint.x === this.endPoint.x)
+      // ) {
+      //   this.motionPoint.y = this.startPoint.y;
+      //   if (this.startPoint.x >= this.endPoint.x) {
+      //     this.motionPoint.x = this.startPoint.x - this.distance - 5;
+      //   } else {
+      //     this.motionPoint.x = this.startPoint.x + this.distance;
+      //   }
+      // } else if (this.endPoint.y >= this.startPoint.y) {
+      //   if (this.motionPoint.y < this.endPoint.y - this.distance - 5) {
+      //     this.motionPoint.y++;
+      //   } else {
+      //     this.calculateMotionPointX();
+      //   }
+      // } else {
+      //   if (this.motionPoint.y > this.endPoint.y + this.distance) {
+      //     this.motionPoint.y--;
+      //   } else {
+      //     this.calculateMotionPointX();
+      //   }
+      // }
     }
 
-    let toX = this.endPoint.x;
-    let toY = this.endPoint.y;
-    if (followXAxis) {
-      if (this.startPoint.y === this.endPoint.y) {
-        if (this.endPoint.x >= this.startPoint.x) {
-          toX = this.endPoint.x - this.componentWidth/2;
-        } else {
-          toX = this.endPoint.x + this.componentWidth/2;
-        }
-      } else {
-        if (this.endPoint.y >= this.startPoint.y) {
-          toY = this.endPoint.y - this.componentHeight/2;
-        } else {
-          toY = this.endPoint.y + this.componentHeight/2;
-        }
-      }
-
-    } else {
-      if (this.startPoint.x === this.endPoint.x) {
-        if (this.endPoint.y >= this.startPoint.y) {
-          toY = this.endPoint.y - this.componentHeight/2;
-        } else {
-          toY = this.endPoint.y + this.componentHeight/2;
-        }
-      } else {
-        if (this.endPoint.x >= this.startPoint.x) {
-          toX = this.endPoint.x - this.componentWidth/2;
-        } else {
-          toX = this.endPoint.x + this.componentWidth/2;
-        }
-      }
-    }
-    this.drawArrow(immediatePoint.x, immediatePoint.y, toX, toY);
+    // let toX = this.endPoint.x;
+    // let toY = this.endPoint.y;
+    // if (chosenFollowXAxis) {
+    //   if (this.startPoint.y === this.endPoint.y) {
+    //     if (this.endPoint.x >= this.startPoint.x) {
+    //       toX = this.endPoint.x - this.componentWidth / 2;
+    //     } else {
+    //       toX = this.endPoint.x + this.componentWidth / 2;
+    //     }
+    //   } else {
+    //     if (this.endPoint.y >= this.startPoint.y) {
+    //       toY = this.endPoint.y - this.componentHeight / 2;
+    //     } else {
+    //       toY = this.endPoint.y + this.componentHeight / 2;
+    //     }
+    //   }
+    // } else {
+    //   if (this.startPoint.x === this.endPoint.x) {
+    //     if (this.endPoint.y >= this.startPoint.y) {
+    //       toY = this.endPoint.y - this.componentHeight / 2;
+    //     } else {
+    //       toY = this.endPoint.y + this.componentHeight / 2;
+    //     }
+    //   } else {
+    //     if (this.endPoint.x >= this.startPoint.x) {
+    //       toX = this.endPoint.x - this.componentWidth / 2;
+    //     } else {
+    //       toX = this.endPoint.x + this.componentWidth / 2;
+    //     }
+    //   }
+    // }
+    // this.drawArrow(immediatePoint.x, immediatePoint.y, toX, toY);
+    this.drawGridLine(constructedPoints);
     this.ctx.stroke();
     this.image.src = '../assets/icons/conveyor.svg';
-    this.ctx.drawImage(this.image, this.motionPoint.x, this.motionPoint.y, 10, 10)
+    this.ctx.drawImage(
+      this.image,
+      this.motionPoint.x,
+      this.motionPoint.y,
+      10,
+      10
+    );
     // this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
+  }
+
+  drawGridLine(constructedPoint: Point[]) {
+    for (let index = 0; index < constructedPoint.length - 1; index++) {
+      const point = constructedPoint[index];
+      const nextPoint = constructedPoint[index + 1];
+      if (index === constructedPoint.length - 2) {
+        this.drawArrow(point.x, point.y, nextPoint.x, nextPoint.y);
+      } else {
+        this.ctx.moveTo(point.x, point.y);
+        this.ctx.lineTo(nextPoint.x, nextPoint.y);
+      }
+    }
   }
 
   drawArrow(fromx: number, fromy: number, tox: number, toy: number) {
@@ -229,9 +328,15 @@ export class Square {
     var angle = Math.atan2(dy, dx);
     this.ctx.moveTo(fromx, fromy);
     this.ctx.lineTo(tox, toy);
-    this.ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+    this.ctx.lineTo(
+      tox - headlen * Math.cos(angle - Math.PI / 6),
+      toy - headlen * Math.sin(angle - Math.PI / 6)
+    );
     this.ctx.moveTo(tox, toy);
-    this.ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+    this.ctx.lineTo(
+      tox - headlen * Math.cos(angle + Math.PI / 6),
+      toy - headlen * Math.sin(angle + Math.PI / 6)
+    );
   }
 }
 
@@ -310,8 +415,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!,
           this.componentDict[p.from],
           this.componentDict[p.to],
-          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetHeight);
+          this.componentDict[
+            p.from
+          ].instance.widgetRef!.nativeElement.offsetWidth,
+          this.componentDict[
+            p.from
+          ].instance.widgetRef!.nativeElement.offsetHeight
+        );
         return <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
@@ -323,7 +433,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
               this.componentDict[p.from].instance.widgetRef!.nativeElement,
               this.componentDict[p.to].instance.widgetRef!.nativeElement
             ),
-            square: square
+            square: square,
           },
         };
       });
@@ -335,7 +445,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   reDrawCanvas() {
     this.ngZone.runOutsideAngular(() => {
       clearInterval(this.reRenderCanvasId!);
-      const squares = this.connections.filter(p => p.line != null).map(p => p.line!.square);
+      const squares = this.connections
+        .filter((p) => p.line != null)
+        .map((p) => p.line!.square);
       squares.forEach((square: Square) => {
         square.rePosition();
       });
@@ -407,7 +519,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       if (p.line) {
         p.line.square.followXAxis = !p.line.square.followXAxis;
       }
-      });
+    });
     this.reDrawCanvas();
   }
 
@@ -490,12 +602,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!,
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
-          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetHeight);
+          this.componentDict[
+            this.connections[index].from!
+          ].instance.widgetRef!.nativeElement.offsetWidth,
+          this.componentDict[
+            this.connections[index].from!
+          ].instance.widgetRef!.nativeElement.offsetHeight
+        );
         this.connections[index].line = <LineInfo>{
           lineId: Utils.generateNewId(),
           leaderLine: line,
-          square: square
+          square: square,
         };
       }
     }
@@ -524,7 +641,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   createNewConnector(startElement: Element, endElement: Element): LeaderLine {
     return new LeaderLine(startElement, endElement, {
       dash: { animation: true },
-      path: 'grid'
+      path: 'grid',
     });
   }
 
