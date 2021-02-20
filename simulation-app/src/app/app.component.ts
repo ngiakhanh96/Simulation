@@ -29,14 +29,13 @@ export interface Connection {
   from: string | null;
   elTo: ElementRef | null;
   to: string | null;
-  line: LineInfo | null;
+  lineInfo: LineInfo | null;
 }
 export interface LineInfo {
   lineId: string;
-  leaderLine: LeaderLine;
-  square: Square;
+  line: Line;
 }
-export class Square {
+export class Line {
   private color = 'red';
   private motionPoint: Point | null = null;
   private startPoint: Point = { x: 500, y: 300 };
@@ -60,38 +59,6 @@ export class Square {
     this.image.src = 'imageSrc';
     this.rePosition();
   }
-
-  // private calculateMotionPointY() {
-  //   if (this.endPoint.y >= this.startPoint.y) {
-  //     if (this.motionPoint.y < this.endPoint.y) {
-  //       this.motionPoint.y++;
-  //     } else {
-  //       this.motionPoint.y = this.endPoint.y;
-  //     }
-  //   } else {
-  //     if (this.motionPoint.y > this.endPoint.y) {
-  //       this.motionPoint.y--;
-  //     } else {
-  //       this.motionPoint.y = this.endPoint.y;
-  //     }
-  //   }
-  // }
-
-  // private calculateMotionPointX() {
-  //   if (this.endPoint.x >= this.startPoint.x) {
-  //     if (this.motionPoint.x < this.endPoint.x) {
-  //       this.motionPoint.x++;
-  //     } else {
-  //       this.motionPoint.x = this.endPoint.x;
-  //     }
-  //   } else {
-  //     if (this.motionPoint.x > this.endPoint.x) {
-  //       this.motionPoint.x--;
-  //     } else {
-  //       this.motionPoint.x = this.endPoint.x;
-  //     }
-  //   }
-  // }
 
   rePosition() {
     this.startPoint.x =
@@ -498,7 +465,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       const plantConnections = this.plantModel!.plantConnections;
       this.connections = plantConnections.map((p) => {
-        const square = new Square(
+        const line = new Line(
           this.canvasCtx!,
           this.componentDict[p.from],
           this.componentDict[p.to],
@@ -514,13 +481,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           from: p.from,
           elTo: this.componentDict[p.to].instance.widgetRef,
           to: p.to,
-          line: <LineInfo>{
+          lineInfo: <LineInfo>{
             lineId: p.lineId,
-            leaderLine: this.createNewConnector(
-              this.componentDict[p.from].instance.widgetRef!.nativeElement,
-              this.componentDict[p.to].instance.widgetRef!.nativeElement
-            ),
-            square: square,
+            line: line,
           },
         };
       });
@@ -532,11 +495,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   reDrawCanvas() {
     this.ngZone.runOutsideAngular(() => {
       clearInterval(this.reRenderCanvasId!);
-      const squares = this.connections
-        .filter((p) => p.line != null)
-        .map((p) => p.line!.square);
-      squares.forEach((square: Square) => {
-        square.rePosition();
+      const lines = this.connections
+        .filter((p) => p.lineInfo != null)
+        .map((p) => p.lineInfo!.line);
+      lines.forEach((line: Line) => {
+        line.rePosition();
       });
       this.reRenderCanvasId = setInterval(() => {
         this.canvasCtx!.clearRect(
@@ -545,8 +508,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!.canvas.width,
           this.canvasCtx!.canvas.height
         );
-        squares.forEach((square: Square) => {
-          square.draw();
+        lines.forEach((line: Line) => {
+          line.draw();
         });
       }, 10);
     });
@@ -567,7 +530,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     const toDeleteConnections = this.connections.filter((p) =>
       toDeleteConnectionConditionFunc(p)
     );
-    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
@@ -580,10 +542,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       p.to != null &&
       (this.selectingIconIds.includes(p.from) ||
         this.selectingIconIds.includes(p.to));
-    const toDeleteConnections = this.connections.filter((p) =>
-      toDeleteConnectionConditionFunc(p)
-    );
-    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
@@ -603,8 +561,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toRedirectConnectionConditionFunc(p)
     );
     toRedirectConnections.forEach((p) => {
-      if (p.line) {
-        p.line.square.followXAxis = !p.line.square.followXAxis;
+      if (p.lineInfo) {
+        p.lineInfo.line.followXAxis = !p.lineInfo.line.followXAxis;
       }
     });
     this.reDrawCanvas();
@@ -660,7 +618,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       from: result.id,
       elTo: null,
       to: null,
-      line: null,
+      lineInfo: null,
     });
 
     this.ngZone.runOutsideAngular(() => {
@@ -681,11 +639,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.connections[index].elTo = result.elementRef;
         this.connections[index].to = result.id;
-        const line = this.createNewConnector(
-          this.connections[index].elFrom!.nativeElement,
-          this.connections[index].elTo!.nativeElement
-        );
-        const square = new Square(
+        const line = new Line(
           this.canvasCtx!,
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
@@ -696,10 +650,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
             this.connections[index].from!
           ].instance.widgetRef!.nativeElement.offsetHeight
         );
-        this.connections[index].line = <LineInfo>{
+        this.connections[index].lineInfo = <LineInfo>{
           lineId: Utils.generateNewId(),
-          leaderLine: line,
-          square: square,
+          line: line,
         };
       }
     }
@@ -717,19 +670,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   reRenderLines() {
-    this.connections
-      .filter((p) => p.line != null)
-      .forEach((p) => {
-        p.line!.leaderLine.position();
-      });
     this.reDrawCanvas();
-  }
-
-  createNewConnector(startElement: Element, endElement: Element): LeaderLine {
-    return new LeaderLine(startElement, endElement, {
-      dash: { animation: true },
-      path: 'grid',
-    });
   }
 
   ngOnDestroy() {
