@@ -38,9 +38,12 @@ export interface LineInfo {
 }
 export class Square {
   private color = 'red';
-  private motionPoint: Point = { x: 0, y: 0 };
+  private motionPoint: Point | null = null;
   private startPoint: Point = { x: 500, y: 300 };
   private endPoint: Point = { x: 400, y: 100 };
+  private constructedPoints: Point[] = [];
+  private animationPoints: Point[] = [];
+  private image: HTMLImageElement = new Image();
 
   constructor(
     private ctx: CanvasRenderingContext2D,
@@ -48,44 +51,47 @@ export class Square {
     private endComponent: ComponentRef<WidgetComponent>,
     private componentWidth: number,
     private componentHeight: number,
+    imageSrc: string = '../assets/icons/conveyor.svg',
+    public imageWidth: number = 5,
+    public imageHeight: number = 5,
     public distance: number = 10,
-    public image: HTMLImageElement = new Image(),
     public followXAxis?: boolean
   ) {
+    this.image.src = 'imageSrc';
     this.rePosition();
   }
 
-  private calculateMotionPointY() {
-    if (this.endPoint.y >= this.startPoint.y) {
-      if (this.motionPoint.y < this.endPoint.y) {
-        this.motionPoint.y++;
-      } else {
-        this.motionPoint.y = this.endPoint.y;
-      }
-    } else {
-      if (this.motionPoint.y > this.endPoint.y) {
-        this.motionPoint.y--;
-      } else {
-        this.motionPoint.y = this.endPoint.y;
-      }
-    }
-  }
+  // private calculateMotionPointY() {
+  //   if (this.endPoint.y >= this.startPoint.y) {
+  //     if (this.motionPoint.y < this.endPoint.y) {
+  //       this.motionPoint.y++;
+  //     } else {
+  //       this.motionPoint.y = this.endPoint.y;
+  //     }
+  //   } else {
+  //     if (this.motionPoint.y > this.endPoint.y) {
+  //       this.motionPoint.y--;
+  //     } else {
+  //       this.motionPoint.y = this.endPoint.y;
+  //     }
+  //   }
+  // }
 
-  private calculateMotionPointX() {
-    if (this.endPoint.x >= this.startPoint.x) {
-      if (this.motionPoint.x < this.endPoint.x) {
-        this.motionPoint.x++;
-      } else {
-        this.motionPoint.x = this.endPoint.x;
-      }
-    } else {
-      if (this.motionPoint.x > this.endPoint.x) {
-        this.motionPoint.x--;
-      } else {
-        this.motionPoint.x = this.endPoint.x;
-      }
-    }
-  }
+  // private calculateMotionPointX() {
+  //   if (this.endPoint.x >= this.startPoint.x) {
+  //     if (this.motionPoint.x < this.endPoint.x) {
+  //       this.motionPoint.x++;
+  //     } else {
+  //       this.motionPoint.x = this.endPoint.x;
+  //     }
+  //   } else {
+  //     if (this.motionPoint.x > this.endPoint.x) {
+  //       this.motionPoint.x--;
+  //     } else {
+  //       this.motionPoint.x = this.endPoint.x;
+  //     }
+  //   }
+  // }
 
   rePosition() {
     this.startPoint.x =
@@ -96,7 +102,7 @@ export class Square {
       this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
     this.endPoint.y =
       this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.motionPoint = { x: 0, y: 0 };
+    this.motionPoint = null;
   }
 
   draw() {
@@ -119,9 +125,172 @@ export class Square {
         ? deltaX >= deltaY
         : this.followXAxis;
 
-    let constructedPoints: Point[] = [];
-    let immediatePoint: Point = { x: this.startPoint.x, y: this.startPoint.y };
-    this.ctx.beginPath();
+    this.buildConstructionPoints(
+      chosenFollowXAxis,
+      moveDown,
+      moveRight,
+      deltaX,
+      deltaY
+    );
+
+    this.drawGridLine();
+    this.buildAnimationPoints(moveDown, moveRight);
+    this.drawAnimation();
+  }
+
+  buildAnimationPoints(moveDown: boolean | null, moveRight: boolean | null) {
+    const animationPoints: Point[] = [];
+    for (let index = 0; index < this.constructedPoints.length - 1; index++) {
+      const point = this.constructedPoints[index];
+      const nextPoint = this.constructedPoints[index + 1];
+      const isLastPoint = index === this.constructedPoints.length - 2;
+      const isHorizontal = nextPoint.y === point.y;
+
+      if (index === 0) {
+        if (isHorizontal) {
+          animationPoints.push({
+            x: moveRight
+              ? point.x - this.imageWidth
+              : point.x + this.imageWidth,
+            y:
+              moveDown === true || moveDown == null
+                ? point.y - this.distance - this.imageHeight
+                : point.y + this.distance,
+          });
+        } else {
+          animationPoints.push({
+            x:
+              moveRight === true || moveRight == null
+                ? point.x + this.distance
+                : point.x - this.distance - this.imageWidth,
+            y: moveDown
+              ? point.y - this.imageHeight
+              : point.y + this.imageHeight,
+          });
+        }
+      }
+
+      const animationPoint: Point = { x: 0, y: 0 };
+      if (isHorizontal) {
+        // moveRight here is always not null
+        if (moveRight) {
+          if (isLastPoint) {
+            animationPoint.x = nextPoint.x;
+          } else {
+            animationPoint.x = nextPoint.x + this.distance;
+          }
+        } else {
+          if (isLastPoint) {
+            animationPoint.x = nextPoint.x - this.imageWidth;
+          } else {
+            animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
+          }
+        }
+
+        if (moveDown === true || moveDown == null) {
+          animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
+        } else {
+          animationPoint.y = nextPoint.y + this.distance;
+        }
+      } else {
+        if (moveRight === true || moveRight == null) {
+          animationPoint.x = nextPoint.x + this.distance;
+        } else {
+          animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
+        }
+
+        if (isLastPoint) {
+          animationPoint.y = nextPoint.y;
+        } else {
+          // moveDown here is always not null
+          if (moveDown) {
+            animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
+          } else {
+            animationPoint.y = nextPoint.y + this.distance;
+          }
+        }
+      }
+      animationPoints.push(animationPoint);
+    }
+    this.animationPoints = animationPoints;
+  }
+
+  drawAnimation() {
+    const firstPoint = this.animationPoints[0];
+    const lastPoint = this.animationPoints[this.animationPoints.length - 1];
+    if (
+      this.motionPoint == null ||
+      (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y)
+    ) {
+      this.motionPoint = {
+        x: firstPoint.x,
+        y: firstPoint.y,
+      };
+    } else {
+      for (let index = 0; index < this.animationPoints.length - 1; index++) {
+        const point = this.animationPoints[index];
+        const nextPoint = this.animationPoints[index + 1];
+        let parameterA = 0;
+        let parameterB = 0;
+        let parameterC = 0;
+        const isHorizontal = nextPoint.y === point.y;
+        if (!isHorizontal) {
+          parameterA = 1;
+          parameterB = 0;
+          parameterC = point.x;
+        } else {
+          parameterA = 0;
+          parameterB = 1;
+          parameterC = point.y;
+        }
+        if (
+          (this.motionPoint.x !== nextPoint.x ||
+            this.motionPoint.y !== nextPoint.y) &&
+          parameterC ===
+            parameterA * this.motionPoint.x + parameterB * this.motionPoint.y
+        ) {
+          const toTheRight = nextPoint.x > point.x;
+          const toTheBottom = nextPoint.y > point.y;
+          if (isHorizontal) {
+            if (toTheRight) {
+              this.motionPoint.x++;
+            } else {
+              this.motionPoint.x--;
+            }
+          } else {
+            if (toTheBottom) {
+              this.motionPoint.y++;
+            } else {
+              this.motionPoint.y--;
+            }
+          }
+          break;
+        }
+      }
+    }
+    // this.ctx.drawImage(
+    //   this.image,
+    //   this.motionPoint.x,
+    //   this.motionPoint.y,
+    //   50,
+    //   50
+    // );
+    this.ctx.fillRect(
+      this.motionPoint.x,
+      this.motionPoint.y,
+      this.imageWidth,
+      this.imageHeight
+    );
+  }
+
+  buildConstructionPoints(
+    chosenFollowXAxis: boolean,
+    moveDown: boolean | null,
+    moveRight: boolean | null,
+    deltaX: number,
+    deltaY: number
+  ) {
+    const constructedPoints: Point[] = [];
     if (chosenFollowXAxis) {
       constructedPoints.push({
         x: Math.round(
@@ -132,7 +301,7 @@ export class Square {
         y: this.startPoint.y,
       });
       if (moveDown != null) {
-        if (deltaY <= this.componentHeight / 2) {
+        if (deltaY > this.componentHeight / 2) {
           constructedPoints.push({
             x: this.endPoint.x,
             y: this.startPoint.y,
@@ -163,35 +332,14 @@ export class Square {
             y: this.endPoint.y,
           });
         }
+      } else {
+        constructedPoints.push({
+          x: moveRight
+            ? this.endPoint.x - this.componentWidth / 2
+            : this.endPoint.x + this.componentWidth / 2,
+          y: this.endPoint.y,
+        });
       }
-
-      // if (
-      //   (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-      //   (this.motionPoint.x ===
-      //     (this.endPoint.x >= this.startPoint.x
-      //       ? this.endPoint.x + this.distance
-      //       : this.endPoint.x - this.distance - 5) &&
-      //     this.motionPoint.y === this.endPoint.y)
-      // ) {
-      //   this.motionPoint.x = this.startPoint.x;
-      //   if (this.endPoint.y >= this.startPoint.y) {
-      //     this.motionPoint.y = this.startPoint.y - this.distance - 5;
-      //   } else {
-      //     this.motionPoint.y = this.startPoint.y + this.distance;
-      //   }
-      // } else if (this.endPoint.x >= this.startPoint.x) {
-      //   if (this.motionPoint.x < this.endPoint.x + this.distance) {
-      //     this.motionPoint.x++;
-      //   } else {
-      //     this.calculateMotionPointY();
-      //   }
-      // } else {
-      //   if (this.motionPoint.x > this.endPoint.x - this.distance - 5) {
-      //     this.motionPoint.x--;
-      //   } else {
-      //     this.calculateMotionPointY();
-      //   }
-      // }
     } else {
       constructedPoints.push({
         x: this.startPoint.x,
@@ -202,7 +350,7 @@ export class Square {
         ),
       });
       if (moveRight != null) {
-        if (deltaX <= this.componentWidth / 2) {
+        if (deltaX > this.componentWidth / 2) {
           constructedPoints.push({
             x: this.startPoint.x,
             y: this.endPoint.y,
@@ -233,92 +381,31 @@ export class Square {
             ),
           });
         }
+      } else {
+        constructedPoints.push({
+          x: this.endPoint.x,
+          y: moveDown
+            ? this.endPoint.y - this.componentHeight / 2
+            : this.endPoint.y + this.componentHeight / 2,
+        });
       }
-      // if (
-      //   (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-      //   (this.motionPoint.y ===
-      //     (this.endPoint.y >= this.startPoint.y
-      //       ? this.endPoint.y - this.distance - 5
-      //       : this.endPoint.y + this.distance) &&
-      //     this.motionPoint.x === this.endPoint.x)
-      // ) {
-      //   this.motionPoint.y = this.startPoint.y;
-      //   if (this.startPoint.x >= this.endPoint.x) {
-      //     this.motionPoint.x = this.startPoint.x - this.distance - 5;
-      //   } else {
-      //     this.motionPoint.x = this.startPoint.x + this.distance;
-      //   }
-      // } else if (this.endPoint.y >= this.startPoint.y) {
-      //   if (this.motionPoint.y < this.endPoint.y - this.distance - 5) {
-      //     this.motionPoint.y++;
-      //   } else {
-      //     this.calculateMotionPointX();
-      //   }
-      // } else {
-      //   if (this.motionPoint.y > this.endPoint.y + this.distance) {
-      //     this.motionPoint.y--;
-      //   } else {
-      //     this.calculateMotionPointX();
-      //   }
-      // }
     }
-
-    // let toX = this.endPoint.x;
-    // let toY = this.endPoint.y;
-    // if (chosenFollowXAxis) {
-    //   if (this.startPoint.y === this.endPoint.y) {
-    //     if (this.endPoint.x >= this.startPoint.x) {
-    //       toX = this.endPoint.x - this.componentWidth / 2;
-    //     } else {
-    //       toX = this.endPoint.x + this.componentWidth / 2;
-    //     }
-    //   } else {
-    //     if (this.endPoint.y >= this.startPoint.y) {
-    //       toY = this.endPoint.y - this.componentHeight / 2;
-    //     } else {
-    //       toY = this.endPoint.y + this.componentHeight / 2;
-    //     }
-    //   }
-    // } else {
-    //   if (this.startPoint.x === this.endPoint.x) {
-    //     if (this.endPoint.y >= this.startPoint.y) {
-    //       toY = this.endPoint.y - this.componentHeight / 2;
-    //     } else {
-    //       toY = this.endPoint.y + this.componentHeight / 2;
-    //     }
-    //   } else {
-    //     if (this.endPoint.x >= this.startPoint.x) {
-    //       toX = this.endPoint.x - this.componentWidth / 2;
-    //     } else {
-    //       toX = this.endPoint.x + this.componentWidth / 2;
-    //     }
-    //   }
-    // }
-    // this.drawArrow(immediatePoint.x, immediatePoint.y, toX, toY);
-    this.drawGridLine(constructedPoints);
-    this.ctx.stroke();
-    this.image.src = '../assets/icons/conveyor.svg';
-    this.ctx.drawImage(
-      this.image,
-      this.motionPoint.x,
-      this.motionPoint.y,
-      10,
-      10
-    );
-    // this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
+    this.constructedPoints = constructedPoints;
   }
 
-  drawGridLine(constructedPoint: Point[]) {
-    for (let index = 0; index < constructedPoint.length - 1; index++) {
-      const point = constructedPoint[index];
-      const nextPoint = constructedPoint[index + 1];
-      if (index === constructedPoint.length - 2) {
+  drawGridLine() {
+    this.ctx.beginPath();
+    for (let index = 0; index < this.constructedPoints.length - 1; index++) {
+      const point = this.constructedPoints[index];
+      const nextPoint = this.constructedPoints[index + 1];
+      if (index === this.constructedPoints.length - 2) {
         this.drawArrow(point.x, point.y, nextPoint.x, nextPoint.y);
       } else {
         this.ctx.moveTo(point.x, point.y);
         this.ctx.lineTo(nextPoint.x, nextPoint.y);
       }
     }
+    this.ctx.stroke();
   }
 
   drawArrow(fromx: number, fromy: number, tox: number, toy: number) {
