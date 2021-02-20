@@ -36,10 +36,17 @@ export interface LineInfo {
   line: Line;
 }
 export class Line {
-  private color = 'red';
+  public chosenFollowXAxis: boolean = false;
+
   private motionPoint: Point | null = null;
-  private startPoint: Point = { x: 500, y: 300 };
-  private endPoint: Point = { x: 400, y: 100 };
+  private get componentWidth(): number {
+    return this.component.nativeElement.offsetWidth;
+  }
+  private get componentHeight(): number {
+    return this.component.nativeElement.offsetHeight;
+  }
+  private startPoint: Point = { x: 0, y: 0 };
+  private endPoint: Point = { x: 0, y: 0 };
   private constructedPoints: Point[] = [];
   private animationPoints: Point[] = [];
   private image: HTMLImageElement = new Image();
@@ -48,19 +55,26 @@ export class Line {
     private ctx: CanvasRenderingContext2D,
     private startComponent: ComponentRef<WidgetComponent>,
     private endComponent: ComponentRef<WidgetComponent>,
-    private componentWidth: number,
-    private componentHeight: number,
+    private component: ElementRef<any>,
     imageSrc: string = '../assets/icons/conveyor.svg',
-    public imageWidth: number = 5,
-    public imageHeight: number = 5,
-    public distance: number = 10,
-    public followXAxis?: boolean
+    public imageWidth: number = 10,
+    public imageHeight: number = 10,
+    public distance: number = 5,
+    public color = 'black',
+    public forceFollowXAxis?: boolean
   ) {
-    this.image.src = 'imageSrc';
+    this.ctx.strokeStyle = this.color;
+    this.image.src = imageSrc;
     this.rePosition();
   }
 
   rePosition() {
+    this.reCalculateStartEndPoint();
+    this.motionPoint = null;
+    this.reCalculatePoints();
+  }
+
+  reCalculateStartEndPoint() {
     this.startPoint.x =
       this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
     this.startPoint.y =
@@ -69,11 +83,9 @@ export class Line {
       this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
     this.endPoint.y =
       this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.motionPoint = null;
   }
 
-  draw() {
-    this.ctx.fillStyle = this.color;
+  reCalculatePoints() {
     const xDistance = this.endPoint.x - this.startPoint.x;
     const yDistance = this.endPoint.y - this.startPoint.y;
 
@@ -85,24 +97,129 @@ export class Line {
     if (deltaX === 0 && deltaY === 0) {
       return;
     }
-    const chosenFollowXAxis =
-      this.followXAxis == null ||
+    this.chosenFollowXAxis =
+      this.forceFollowXAxis == null ||
       deltaX <= this.componentWidth / 2 ||
       deltaY <= this.componentHeight / 2
         ? deltaX >= deltaY
-        : this.followXAxis;
+        : this.forceFollowXAxis;
 
-    this.buildConstructionPoints(
-      chosenFollowXAxis,
-      moveDown,
-      moveRight,
-      deltaX,
-      deltaY
-    );
-
-    this.drawGridLine();
+    this.buildConstructionPoints(moveDown, moveRight, deltaX, deltaY);
     this.buildAnimationPoints(moveDown, moveRight);
+  }
+
+  draw() {
+    this.drawGridLine();
     this.drawAnimation();
+  }
+
+  buildConstructionPoints(
+    moveDown: boolean | null,
+    moveRight: boolean | null,
+    deltaX: number,
+    deltaY: number
+  ) {
+    const constructedPoints: Point[] = [];
+    if (this.chosenFollowXAxis) {
+      constructedPoints.push({
+        x: Math.round(
+          moveRight
+            ? this.startPoint.x + this.componentWidth / 2
+            : this.startPoint.x - this.componentWidth / 2
+        ),
+        y: this.startPoint.y,
+      });
+      if (moveDown != null) {
+        if (deltaY > this.componentHeight / 2) {
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        } else {
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        }
+      } else {
+        constructedPoints.push({
+          x: moveRight
+            ? this.endPoint.x - this.componentWidth / 2
+            : this.endPoint.x + this.componentWidth / 2,
+          y: this.endPoint.y,
+        });
+      }
+    } else {
+      constructedPoints.push({
+        x: this.startPoint.x,
+        y: Math.round(
+          moveDown
+            ? this.startPoint.y + this.componentHeight / 2
+            : this.startPoint.y - this.componentHeight / 2
+        ),
+      });
+      if (moveRight != null) {
+        if (deltaX > this.componentWidth / 2) {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        } else {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        }
+      } else {
+        constructedPoints.push({
+          x: this.endPoint.x,
+          y: moveDown
+            ? this.endPoint.y - this.componentHeight / 2
+            : this.endPoint.y + this.componentHeight / 2,
+        });
+      }
+    }
+    this.constructedPoints = constructedPoints;
   }
 
   buildAnimationPoints(moveDown: boolean | null, moveRight: boolean | null) {
@@ -235,129 +352,19 @@ export class Line {
         }
       }
     }
-    // this.ctx.drawImage(
-    //   this.image,
-    //   this.motionPoint.x,
-    //   this.motionPoint.y,
-    //   50,
-    //   50
-    // );
-    this.ctx.fillRect(
+    this.ctx.drawImage(
+      this.image,
       this.motionPoint.x,
       this.motionPoint.y,
       this.imageWidth,
       this.imageHeight
     );
-  }
-
-  buildConstructionPoints(
-    chosenFollowXAxis: boolean,
-    moveDown: boolean | null,
-    moveRight: boolean | null,
-    deltaX: number,
-    deltaY: number
-  ) {
-    const constructedPoints: Point[] = [];
-    if (chosenFollowXAxis) {
-      constructedPoints.push({
-        x: Math.round(
-          moveRight
-            ? this.startPoint.x + this.componentWidth / 2
-            : this.startPoint.x - this.componentWidth / 2
-        ),
-        y: this.startPoint.y,
-      });
-      if (moveDown != null) {
-        if (deltaY > this.componentHeight / 2) {
-          constructedPoints.push({
-            x: this.endPoint.x,
-            y: this.startPoint.y,
-          });
-          constructedPoints.push({
-            x: this.endPoint.x,
-            y: Math.round(
-              moveDown
-                ? this.endPoint.y - this.componentHeight / 2
-                : this.endPoint.y + this.componentHeight / 2
-            ),
-          });
-        } else {
-          constructedPoints.push({
-            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
-            y: this.startPoint.y,
-          });
-          constructedPoints.push({
-            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
-            y: this.endPoint.y,
-          });
-          constructedPoints.push({
-            x: Math.round(
-              moveRight
-                ? this.endPoint.x - this.componentWidth / 2
-                : this.endPoint.x + this.componentWidth / 2
-            ),
-            y: this.endPoint.y,
-          });
-        }
-      } else {
-        constructedPoints.push({
-          x: moveRight
-            ? this.endPoint.x - this.componentWidth / 2
-            : this.endPoint.x + this.componentWidth / 2,
-          y: this.endPoint.y,
-        });
-      }
-    } else {
-      constructedPoints.push({
-        x: this.startPoint.x,
-        y: Math.round(
-          moveDown
-            ? this.startPoint.y + this.componentHeight / 2
-            : this.startPoint.y - this.componentHeight / 2
-        ),
-      });
-      if (moveRight != null) {
-        if (deltaX > this.componentWidth / 2) {
-          constructedPoints.push({
-            x: this.startPoint.x,
-            y: this.endPoint.y,
-          });
-          constructedPoints.push({
-            x: Math.round(
-              moveRight
-                ? this.endPoint.x - this.componentWidth / 2
-                : this.endPoint.x + this.componentWidth / 2
-            ),
-            y: this.endPoint.y,
-          });
-        } else {
-          constructedPoints.push({
-            x: this.startPoint.x,
-            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
-          });
-          constructedPoints.push({
-            x: this.endPoint.x,
-            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
-          });
-          constructedPoints.push({
-            x: this.endPoint.x,
-            y: Math.round(
-              moveDown
-                ? this.endPoint.y - this.componentHeight / 2
-                : this.endPoint.y + this.componentHeight / 2
-            ),
-          });
-        }
-      } else {
-        constructedPoints.push({
-          x: this.endPoint.x,
-          y: moveDown
-            ? this.endPoint.y - this.componentHeight / 2
-            : this.endPoint.y + this.componentHeight / 2,
-        });
-      }
-    }
-    this.constructedPoints = constructedPoints;
+    // this.ctx.fillRect(
+    //   this.motionPoint.x,
+    //   this.motionPoint.y,
+    //   this.imageWidth,
+    //   this.imageHeight
+    // );
   }
 
   drawGridLine() {
@@ -469,12 +476,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!,
           this.componentDict[p.from],
           this.componentDict[p.to],
-          this.componentDict[
-            p.from
-          ].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[
-            p.from
-          ].instance.widgetRef!.nativeElement.offsetHeight
+          this.componentDict[p.from].instance.widgetRef!
         );
         return <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
@@ -562,7 +564,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     toRedirectConnections.forEach((p) => {
       if (p.lineInfo) {
-        p.lineInfo.line.followXAxis = !p.lineInfo.line.followXAxis;
+        if (p.lineInfo.line.forceFollowXAxis != null) {
+          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.forceFollowXAxis;
+        } else {
+          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.chosenFollowXAxis;
+        }
       }
     });
     this.reDrawCanvas();
@@ -643,12 +649,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!,
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
-          this.componentDict[
-            this.connections[index].from!
-          ].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[
-            this.connections[index].from!
-          ].instance.widgetRef!.nativeElement.offsetHeight
+          this.componentDict[this.connections[index].from!].instance.widgetRef!
         );
         this.connections[index].lineInfo = <LineInfo>{
           lineId: Utils.generateNewId(),
