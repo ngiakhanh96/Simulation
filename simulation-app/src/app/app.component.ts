@@ -47,9 +47,14 @@ export class Line {
   }
   private startPoint: Point = { x: 0, y: 0 };
   private endPoint: Point = { x: 0, y: 0 };
+  private moveDown: boolean | null = null;
+  private moveRight: boolean | null = null;
+
   private constructedPoints: Point[] = [];
   private animationPoints: Point[] = [];
   private image: HTMLImageElement = new Image();
+
+  private isReverse: boolean = false;
 
   constructor(
     private ctx: CanvasRenderingContext2D,
@@ -61,6 +66,7 @@ export class Line {
     public imageHeight: number = 10,
     public distance: number = 5,
     public color = 'black',
+    private reverse = true,
     public forceFollowXAxis?: boolean
   ) {
     this.ctx.strokeStyle = this.color;
@@ -69,8 +75,9 @@ export class Line {
   }
 
   rePosition() {
-    this.reCalculateStartEndPoint();
+    this.isReverse = false;
     this.motionPoint = null;
+    this.reCalculateStartEndPoint();
     this.reCalculatePoints();
   }
 
@@ -83,15 +90,15 @@ export class Line {
       this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
     this.endPoint.y =
       this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
-  }
 
-  reCalculatePoints() {
     const xDistance = this.endPoint.x - this.startPoint.x;
     const yDistance = this.endPoint.y - this.startPoint.y;
 
-    const moveDown = yDistance === 0 ? null : yDistance > 0;
-    const moveRight = xDistance === 0 ? null : xDistance > 0;
+    this.moveDown = yDistance === 0 ? null : yDistance > 0;
+    this.moveRight = xDistance === 0 ? null : xDistance > 0;
+  }
 
+  reCalculatePoints() {
     const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
     const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
     if (deltaX === 0 && deltaY === 0) {
@@ -104,8 +111,8 @@ export class Line {
         ? deltaX >= deltaY
         : this.forceFollowXAxis;
 
-    this.buildConstructionPoints(moveDown, moveRight, deltaX, deltaY);
-    this.buildAnimationPoints(moveDown, moveRight);
+    this.buildConstructionPoints(deltaX, deltaY);
+    this.buildAnimationPoints();
   }
 
   draw() {
@@ -114,8 +121,6 @@ export class Line {
   }
 
   buildConstructionPoints(
-    moveDown: boolean | null,
-    moveRight: boolean | null,
     deltaX: number,
     deltaY: number
   ) {
@@ -123,13 +128,13 @@ export class Line {
     if (this.chosenFollowXAxis) {
       constructedPoints.push({
         x: Math.round(
-          moveRight
+          this.moveRight
             ? this.startPoint.x + this.componentWidth / 2
             : this.startPoint.x - this.componentWidth / 2
         ),
         y: this.startPoint.y,
       });
-      if (moveDown != null) {
+      if (this.moveDown != null) {
         if (deltaY > this.componentHeight / 2) {
           constructedPoints.push({
             x: this.endPoint.x,
@@ -138,7 +143,7 @@ export class Line {
           constructedPoints.push({
             x: this.endPoint.x,
             y: Math.round(
-              moveDown
+              this.moveDown
                 ? this.endPoint.y - this.componentHeight / 2
                 : this.endPoint.y + this.componentHeight / 2
             ),
@@ -154,7 +159,7 @@ export class Line {
           });
           constructedPoints.push({
             x: Math.round(
-              moveRight
+              this.moveRight
                 ? this.endPoint.x - this.componentWidth / 2
                 : this.endPoint.x + this.componentWidth / 2
             ),
@@ -163,7 +168,7 @@ export class Line {
         }
       } else {
         constructedPoints.push({
-          x: moveRight
+          x: this.moveRight
             ? this.endPoint.x - this.componentWidth / 2
             : this.endPoint.x + this.componentWidth / 2,
           y: this.endPoint.y,
@@ -173,12 +178,12 @@ export class Line {
       constructedPoints.push({
         x: this.startPoint.x,
         y: Math.round(
-          moveDown
+          this.moveDown
             ? this.startPoint.y + this.componentHeight / 2
             : this.startPoint.y - this.componentHeight / 2
         ),
       });
-      if (moveRight != null) {
+      if (this.moveRight != null) {
         if (deltaX > this.componentWidth / 2) {
           constructedPoints.push({
             x: this.startPoint.x,
@@ -186,7 +191,7 @@ export class Line {
           });
           constructedPoints.push({
             x: Math.round(
-              moveRight
+              this.moveRight
                 ? this.endPoint.x - this.componentWidth / 2
                 : this.endPoint.x + this.componentWidth / 2
             ),
@@ -204,7 +209,7 @@ export class Line {
           constructedPoints.push({
             x: this.endPoint.x,
             y: Math.round(
-              moveDown
+              this.moveDown
                 ? this.endPoint.y - this.componentHeight / 2
                 : this.endPoint.y + this.componentHeight / 2
             ),
@@ -213,7 +218,7 @@ export class Line {
       } else {
         constructedPoints.push({
           x: this.endPoint.x,
-          y: moveDown
+          y: this.moveDown
             ? this.endPoint.y - this.componentHeight / 2
             : this.endPoint.y + this.componentHeight / 2,
         });
@@ -222,32 +227,34 @@ export class Line {
     this.constructedPoints = constructedPoints;
   }
 
-  buildAnimationPoints(moveDown: boolean | null, moveRight: boolean | null) {
+  buildAnimationPoints() {
     const animationPoints: Point[] = [];
+
     for (let index = 0; index < this.constructedPoints.length - 1; index++) {
       const point = this.constructedPoints[index];
       const nextPoint = this.constructedPoints[index + 1];
+      const isFirstPoint = index === 0;
       const isLastPoint = index === this.constructedPoints.length - 2;
       const isHorizontal = nextPoint.y === point.y;
 
-      if (index === 0) {
+      if (isFirstPoint) {
         if (isHorizontal) {
           animationPoints.push({
-            x: moveRight
+            x: this.moveRight
               ? point.x - this.imageWidth
               : point.x + this.imageWidth,
             y:
-              moveDown === true || moveDown == null
+            this.moveDown === true || this.moveDown == null
                 ? point.y - this.distance - this.imageHeight
                 : point.y + this.distance,
           });
         } else {
           animationPoints.push({
             x:
-              moveRight === true || moveRight == null
+            this.moveRight === true || this.moveRight == null
                 ? point.x + this.distance
                 : point.x - this.distance - this.imageWidth,
-            y: moveDown
+            y: this.moveDown
               ? point.y - this.imageHeight
               : point.y + this.imageHeight,
           });
@@ -257,7 +264,7 @@ export class Line {
       const animationPoint: Point = { x: 0, y: 0 };
       if (isHorizontal) {
         // moveRight here is always not null
-        if (moveRight) {
+        if (this.moveRight) {
           if (isLastPoint) {
             animationPoint.x = nextPoint.x;
           } else {
@@ -271,13 +278,13 @@ export class Line {
           }
         }
 
-        if (moveDown === true || moveDown == null) {
+        if (this.moveDown === true || this.moveDown == null) {
           animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
         } else {
           animationPoint.y = nextPoint.y + this.distance;
         }
       } else {
-        if (moveRight === true || moveRight == null) {
+        if (this.moveRight === true || this.moveRight == null) {
           animationPoint.x = nextPoint.x + this.distance;
         } else {
           animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
@@ -287,7 +294,7 @@ export class Line {
           animationPoint.y = nextPoint.y;
         } else {
           // moveDown here is always not null
-          if (moveDown) {
+          if (this.moveDown) {
             animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
           } else {
             animationPoint.y = nextPoint.y + this.distance;
@@ -303,68 +310,94 @@ export class Line {
     const firstPoint = this.animationPoints[0];
     const lastPoint = this.animationPoints[this.animationPoints.length - 1];
     if (
-      this.motionPoint == null ||
-      (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y)
+      this.motionPoint == null || (!this.reverse && (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y))
     ) {
       this.motionPoint = {
         x: firstPoint.x,
         y: firstPoint.y,
       };
-    } else {
-      for (let index = 0; index < this.animationPoints.length - 1; index++) {
-        const point = this.animationPoints[index];
-        const nextPoint = this.animationPoints[index + 1];
-        let parameterA = 0;
-        let parameterB = 0;
-        let parameterC = 0;
-        const isHorizontal = nextPoint.y === point.y;
-        if (!isHorizontal) {
-          parameterA = 1;
-          parameterB = 0;
-          parameterC = point.x;
-        } else {
-          parameterA = 0;
-          parameterB = 1;
-          parameterC = point.y;
-        }
-        if (
-          (this.motionPoint.x !== nextPoint.x ||
-            this.motionPoint.y !== nextPoint.y) &&
-          parameterC ===
-            parameterA * this.motionPoint.x + parameterB * this.motionPoint.y
-        ) {
-          const toTheRight = nextPoint.x > point.x;
-          const toTheBottom = nextPoint.y > point.y;
-          if (isHorizontal) {
-            if (toTheRight) {
-              this.motionPoint.x++;
-            } else {
-              this.motionPoint.x--;
-            }
-          } else {
-            if (toTheBottom) {
-              this.motionPoint.y++;
-            } else {
-              this.motionPoint.y--;
-            }
-          }
-          break;
-        }
+      return;
+    }
+
+    if (this.reverse) {
+      if (this.motionPoint.x === firstPoint.x && this.motionPoint.y === firstPoint.y) {
+        this.isReverse = false;
+      }
+
+      if (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y) {
+        this.isReverse = true;
       }
     }
-    this.ctx.drawImage(
-      this.image,
-      this.motionPoint.x,
-      this.motionPoint.y,
-      this.imageWidth,
-      this.imageHeight
-    );
-    // this.ctx.fillRect(
-    //   this.motionPoint.x,
-    //   this.motionPoint.y,
-    //   this.imageWidth,
-    //   this.imageHeight
-    // );
+
+    const chosenAnimationPoints = !this.isReverse ? this.animationPoints : [...this.animationPoints].reverse();
+
+    for (let index = 0; index < chosenAnimationPoints.length - 1; index++) {
+      const point = chosenAnimationPoints[index];
+      const nextPoint = chosenAnimationPoints[index + 1];
+      let parameterA = 0;
+      let parameterB = 0;
+      let parameterC = 0;
+      const isHorizontal = nextPoint.y === point.y;
+      if (!isHorizontal) {
+        parameterA = 1;
+        parameterB = 0;
+        parameterC = point.x;
+      } else {
+        parameterA = 0;
+        parameterB = 1;
+        parameterC = point.y;
+      }
+      if (
+        (this.motionPoint.x !== nextPoint.x ||
+          this.motionPoint.y !== nextPoint.y) &&
+        parameterC ===
+          parameterA * this.motionPoint.x + parameterB * this.motionPoint.y
+      ) {
+        const toTheRight = nextPoint.x > point.x;
+        const toTheBottom = nextPoint.y > point.y;
+        if (isHorizontal) {
+          if (toTheRight) {
+            this.motionPoint.x++;
+          } else {
+            this.motionPoint.x--;
+          }
+        } else {
+          if (toTheBottom) {
+            this.motionPoint.y++;
+          } else {
+            this.motionPoint.y--;
+          }
+        }
+        break;
+      }
+    }
+
+    if ((!this.isReverse && (this.moveRight === true || this.moveRight == null)) ||
+    (this.isReverse && this.moveRight === false)) {
+      this.ctx.drawImage(
+        this.image,
+        this.motionPoint.x,
+        this.motionPoint.y,
+        this.imageWidth,
+        this.imageHeight
+      );
+    } else {
+      this.ctx.translate(this.motionPoint.x + this.imageWidth, this.motionPoint.y);
+
+      // scaleX by -1; this "trick" flips horizontally
+      this.ctx.scale(-1,1);
+
+      // draw the img
+      this.ctx.drawImage(
+        this.image,
+        0,
+        0,
+        this.imageWidth,
+        this.imageHeight
+      );
+      this.ctx.setTransform(1,0,0,1,0,0);
+    }
+    // console.log('x: ' + this.motionPoint.x + ', y: ' + this.motionPoint.y)
   }
 
   drawGridLine() {
