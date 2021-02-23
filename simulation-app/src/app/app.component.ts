@@ -57,6 +57,9 @@ export class Line {
   private isReverse: boolean = false;
   private lastWaitingTime: Date | null = null;
 
+  private maxStep: number = 1;
+  private currentStep: number = this.maxStep;
+
   constructor(
     private ctx: CanvasRenderingContext2D,
     private startComponent: ComponentRef<WidgetComponent>,
@@ -70,7 +73,7 @@ export class Line {
     private supportReverse = true,
     private waitingDurationAtStart = 2000,
     private waitingDurationAtEnd = 3000,
-    private speed = 1,
+    private speed = 0.5,
     public forceFollowXAxis?: boolean
   ) {
     this.ctx.strokeStyle = this.color;
@@ -328,6 +331,7 @@ export class Line {
         if (this.supportReverse) {
           this.isReverse = false;
         }
+        this.currentStep = this.maxStep;
       }
 
     } else if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)) {
@@ -342,12 +346,18 @@ export class Line {
             y: firstPoint.y,
           };
         }
+        this.currentStep = this.maxStep;
       }
     }
 
 
     if (willFollowAnimationPoints) {
-      this.followAnimationPoints();
+      if (this.currentStep >= this.maxStep) {
+        this.followAnimationPoints();
+        this.currentStep = 0;
+      } else {
+        this.currentStep += this.speed;
+      }
     }
     this.drawImage();
     // console.log('x: ' + this.motionPoint.x + ', y: ' + this.motionPoint.y)
