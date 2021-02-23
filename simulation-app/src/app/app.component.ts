@@ -55,6 +55,7 @@ export class Line {
   private image: HTMLImageElement = new Image();
 
   private isReverse: boolean = false;
+  private lastWaitingTime: Date | null = null;
 
   constructor(
     private ctx: CanvasRenderingContext2D,
@@ -66,7 +67,10 @@ export class Line {
     public imageHeight: number = 10,
     public distance: number = 5,
     public color = 'black',
-    private reverse = true,
+    private supportReverse = true,
+    private waitingDurationAtStart = 2000,
+    private waitingDurationAtEnd = 3000,
+    private speed = 1,
     public forceFollowXAxis?: boolean
   ) {
     this.ctx.strokeStyle = this.color;
@@ -309,26 +313,65 @@ export class Line {
   drawAnimation() {
     const firstPoint = this.animationPoints[0];
     const lastPoint = this.animationPoints[this.animationPoints.length - 1];
-    if (
-      this.motionPoint == null || (!this.reverse && (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y))
-    ) {
+    let willFollowAnimationPoints = true;
+    if (this.motionPoint == null) {
       this.motionPoint = {
         x: firstPoint.x,
         y: firstPoint.y,
       };
-      return;
     }
 
-    if (this.reverse) {
-      if (this.motionPoint.x === firstPoint.x && this.motionPoint.y === firstPoint.y) {
-        this.isReverse = false;
+    if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, firstPoint)) {
+      if (!this.checkIfWaitingLongEnough(this.waitingDurationAtStart)) {
+        willFollowAnimationPoints = false;
+      } else {
+        if (this.supportReverse) {
+          this.isReverse = false;
+        }
       }
 
-      if (this.motionPoint.x === lastPoint.x && this.motionPoint.y === lastPoint.y) {
-        this.isReverse = true;
+    } else if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)) {
+      if (!this.checkIfWaitingLongEnough(this.waitingDurationAtEnd)) {
+        willFollowAnimationPoints = false;
+      } else {
+        if (this.supportReverse) {
+          this.isReverse = true;
+        } else {
+          this.motionPoint = {
+            x: firstPoint.x,
+            y: firstPoint.y,
+          };
+        }
       }
     }
 
+
+    if (willFollowAnimationPoints) {
+      this.followAnimationPoints();
+    }
+    this.drawImage();
+    // console.log('x: ' + this.motionPoint.x + ', y: ' + this.motionPoint.y)
+  }
+
+  compareIfTwoPointsAreOverlapping(point1: Point, point2: Point): boolean {
+    return point1.x === point2.x && point1.y === point2.y;
+  }
+
+  checkIfWaitingLongEnough(duration: number): boolean {
+    if (this.lastWaitingTime == null) {
+      this.lastWaitingTime = new Date();
+      return false;
+    }
+
+    const elapsedTime = new Date().getTime() - this.lastWaitingTime.getTime();
+    if (elapsedTime >= duration) {
+      this.lastWaitingTime = null;
+      return true;
+    }
+    return false;
+  }
+
+  followAnimationPoints() {
     const chosenAnimationPoints = !this.isReverse ? this.animationPoints : [...this.animationPoints].reverse();
 
     for (let index = 0; index < chosenAnimationPoints.length - 1; index++) {
@@ -348,41 +391,43 @@ export class Line {
         parameterC = point.y;
       }
       if (
-        (this.motionPoint.x !== nextPoint.x ||
-          this.motionPoint.y !== nextPoint.y) &&
+        (this.motionPoint!.x !== nextPoint.x ||
+          this.motionPoint!.y !== nextPoint.y) &&
         parameterC ===
-          parameterA * this.motionPoint.x + parameterB * this.motionPoint.y
+          parameterA * this.motionPoint!.x + parameterB * this.motionPoint!.y
       ) {
         const toTheRight = nextPoint.x > point.x;
         const toTheBottom = nextPoint.y > point.y;
         if (isHorizontal) {
           if (toTheRight) {
-            this.motionPoint.x++;
+            this.motionPoint!.x++;
           } else {
-            this.motionPoint.x--;
+            this.motionPoint!.x--;
           }
         } else {
           if (toTheBottom) {
-            this.motionPoint.y++;
+            this.motionPoint!.y++;
           } else {
-            this.motionPoint.y--;
+            this.motionPoint!.y--;
           }
         }
         break;
       }
     }
+  }
 
+  drawImage() {
     if ((!this.isReverse && (this.moveRight === true || this.moveRight == null)) ||
     (this.isReverse && this.moveRight === false)) {
       this.ctx.drawImage(
         this.image,
-        this.motionPoint.x,
-        this.motionPoint.y,
+        this.motionPoint!.x,
+        this.motionPoint!.y,
         this.imageWidth,
         this.imageHeight
       );
     } else {
-      this.ctx.translate(this.motionPoint.x + this.imageWidth, this.motionPoint.y);
+      this.ctx.translate(this.motionPoint!.x + this.imageWidth, this.motionPoint!.y);
 
       // scaleX by -1; this "trick" flips horizontally
       this.ctx.scale(-1,1);
@@ -397,7 +442,6 @@ export class Line {
       );
       this.ctx.setTransform(1,0,0,1,0,0);
     }
-    // console.log('x: ' + this.motionPoint.x + ', y: ' + this.motionPoint.y)
   }
 
   drawGridLine() {
