@@ -65,15 +65,15 @@ export class Line {
     private startComponent: ComponentRef<WidgetComponent>,
     private endComponent: ComponentRef<WidgetComponent>,
     private component: ElementRef<any>,
-    imageSrc: string = '../assets/icons/conveyor.svg',
-    public imageWidth: number = 10,
-    public imageHeight: number = 10,
+    imageSrc: string = '../assets/icons/forklift.jpg',
+    public imageWidth: number = 20,
+    public imageHeight: number = 20,
     public distance: number = 5,
     public color = 'black',
     private supportReverse = true,
-    private waitingDurationAtStart = 2000,
-    private waitingDurationAtEnd = 3000,
-    private speed = 0.5,
+    private waitingDurationAtStart = 0,
+    private waitingDurationAtEnd = 0,
+    private speed = 1,
     public forceFollowXAxis?: boolean
   ) {
     this.ctx.strokeStyle = this.color;
@@ -249,7 +249,7 @@ export class Line {
           animationPoints.push({
             x: this.moveRight
               ? point.x - this.imageWidth
-              : point.x + this.imageWidth,
+              : point.x,
             y:
             this.moveDown === true || this.moveDown == null
                 ? point.y - this.distance - this.imageHeight
@@ -263,7 +263,7 @@ export class Line {
                 : point.x - this.distance - this.imageWidth,
             y: this.moveDown
               ? point.y - this.imageHeight
-              : point.y + this.imageHeight,
+              : point.y,
           });
         }
       }
@@ -298,7 +298,11 @@ export class Line {
         }
 
         if (isLastPoint) {
-          animationPoint.y = nextPoint.y;
+          if (this.moveDown) {
+            animationPoint.y = nextPoint.y;
+          } else {
+            animationPoint.y = nextPoint.y - this.imageHeight;
+          }
         } else {
           // moveDown here is always not null
           if (this.moveDown) {
