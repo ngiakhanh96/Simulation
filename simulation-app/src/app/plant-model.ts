@@ -1,5 +1,3 @@
-import { ICONS } from "./icon-list";
-
 export interface PlantConnection {
   from: string;
   to: string;
@@ -7,7 +5,7 @@ export interface PlantConnection {
   order: number;
   imageSrc: string;
   supportReverse: boolean;
-  onlyRunFirstTime: boolean;
+  onlyRunFirstNTime: number | null;
 }
 
 export interface ComponentLocation {
@@ -95,7 +93,7 @@ export const PlantModel1 = <PlantModel>{
       iconId: '15',
       location: {
         x: 613,
-        y: 182,
+        y: 178,
       },
     },
     {
@@ -139,7 +137,7 @@ export const PlantModel1 = <PlantModel>{
       order: 1,
       imageSrc: '../../assets/icons/checklist.svg',
       supportReverse: false,
-      onlyRunFirstTime: true
+      onlyRunFirstNTime: 1,
     },
     {
       from: '3',
@@ -148,7 +146,7 @@ export const PlantModel1 = <PlantModel>{
       order: 1,
       imageSrc: '../../assets/icons/checklist.svg',
       supportReverse: false,
-      onlyRunFirstTime: true
+      onlyRunFirstNTime: 1,
     },
     {
       from: '4',
@@ -157,7 +155,7 @@ export const PlantModel1 = <PlantModel>{
       order: 1,
       imageSrc: '../../assets/icons/checklist.svg',
       supportReverse: false,
-      onlyRunFirstTime: true
+      onlyRunFirstNTime: 1,
     },
     {
       from: '8',
@@ -166,7 +164,7 @@ export const PlantModel1 = <PlantModel>{
       order: 2,
       imageSrc: '../../assets/icons/contract.svg',
       supportReverse: false,
-      onlyRunFirstTime: true
+      onlyRunFirstNTime: 1,
     },
     {
       from: '1',
@@ -175,7 +173,7 @@ export const PlantModel1 = <PlantModel>{
       order: 3,
       imageSrc: '../../assets/icons/matza.svg',
       supportReverse: false,
-      onlyRunFirstTime: true
+      onlyRunFirstNTime: 5,
     },
     {
       from: '11',
@@ -184,7 +182,7 @@ export const PlantModel1 = <PlantModel>{
       order: 4,
       imageSrc: '../../assets/icons/matza.svg',
       supportReverse: false,
-      onlyRunFirstTime: false
+      onlyRunFirstNTime: null,
     },
     {
       from: '12',
@@ -193,7 +191,7 @@ export const PlantModel1 = <PlantModel>{
       order: 4,
       imageSrc: '../../assets/icons/matza.svg',
       supportReverse: false,
-      onlyRunFirstTime: false
+      onlyRunFirstNTime: null,
     },
     {
       from: '10',
@@ -202,7 +200,7 @@ export const PlantModel1 = <PlantModel>{
       order: 5,
       imageSrc: '../../assets/icons/forklift.jpg',
       supportReverse: true,
-      onlyRunFirstTime: false
+      onlyRunFirstNTime: null,
     },
     {
       from: '5',
@@ -211,7 +209,7 @@ export const PlantModel1 = <PlantModel>{
       order: 6,
       imageSrc: '../../assets/icons/matza2.svg',
       supportReverse: false,
-      onlyRunFirstTime: false
+      onlyRunFirstNTime: null,
     },
     {
       from: '6',
@@ -220,7 +218,7 @@ export const PlantModel1 = <PlantModel>{
       order: 7,
       imageSrc: '../../assets/icons/matza2.svg',
       supportReverse: false,
-      onlyRunFirstTime: false
-    }
+      onlyRunFirstNTime: null,
+    },
   ],
 };

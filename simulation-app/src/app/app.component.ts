@@ -37,7 +37,7 @@ export interface LineInfo {
 }
 export class Line {
   public chosenFollowXAxis: boolean = false;
-  public isAfterFirstTime: boolean = false;
+  public isAfterFirstRound: boolean = false;
 
   private motionPoint: Point | null = null;
   private get componentWidth(): number {
@@ -61,7 +61,15 @@ export class Line {
   private maxStep: number = 1;
   private currentStep: number = this.maxStep;
 
-  private usedToRunToTheEnd: boolean = false;
+  public usedToRunToTheEnd: boolean = false;
+  public currentRunTime: number = 0;
+
+  private get canContinueToRun(): boolean {
+    return (
+      this.onlyRunFirstNTime == null ||
+      this.currentRunTime < this.onlyRunFirstNTime
+    );
+  }
 
   constructor(
     private ctx: CanvasRenderingContext2D,
@@ -69,10 +77,10 @@ export class Line {
     private startComponent: ComponentRef<WidgetComponent>,
     private endComponent: ComponentRef<WidgetComponent>,
     private component: ElementRef<any>,
-    imageSrc: string = '../assets/icons/forklift.jpg',
+    public order: number,
+    imageSrc: string,
     public supportReverse = true,
-    public onlyRunFirstTime = true,
-    public order: number = 1,
+    public onlyRunFirstNTime: number | null = null,
     public imageWidth: number = 40,
     public imageHeight: number = 40,
     public distance: number = 5,
@@ -90,6 +98,9 @@ export class Line {
   rePosition() {
     this.isReverse = false;
     this.motionPoint = null;
+    this.usedToRunToTheEnd = false;
+    this.isAfterFirstRound = false;
+    this.currentRunTime = 0;
     this.reCalculateStartEndPoint();
     this.reCalculatePoints();
   }
@@ -128,7 +139,7 @@ export class Line {
     this.buildAnimationPoints();
   }
 
-  draw(cancelAnimation: boolean  = false) {
+  draw(cancelAnimation: boolean = false) {
     this.drawGridLine();
 
     if (!cancelAnimation) {
@@ -136,10 +147,7 @@ export class Line {
     }
   }
 
-  buildConstructionPoints(
-    deltaX: number,
-    deltaY: number
-  ) {
+  buildConstructionPoints(deltaX: number, deltaY: number) {
     const constructedPoints: Point[] = [];
     if (this.chosenFollowXAxis) {
       constructedPoints.push({
@@ -256,23 +264,19 @@ export class Line {
       if (isFirstPoint) {
         if (isHorizontal) {
           animationPoints.push({
-            x: this.moveRight
-              ? point.x - this.imageWidth
-              : point.x,
+            x: this.moveRight ? point.x - this.imageWidth : point.x,
             y:
-            this.moveDown === true || this.moveDown == null
+              this.moveDown === true || this.moveDown == null
                 ? point.y - this.distance - this.imageHeight
                 : point.y + this.distance,
           });
         } else {
           animationPoints.push({
             x:
-            this.moveRight === true || this.moveRight == null
+              this.moveRight === true || this.moveRight == null
                 ? point.x + this.distance
                 : point.x - this.distance - this.imageWidth,
-            y: this.moveDown
-              ? point.y - this.imageHeight
-              : point.y,
+            y: this.moveDown ? point.y - this.imageHeight : point.y,
           });
         }
       }
@@ -338,35 +342,36 @@ export class Line {
     }
 
     if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, firstPoint)) {
-      if (this.supportReverse && this.usedToRunToTheEnd) {
-        this.isAfterFirstTime = true;
-      }
-      if (this.supportReverse && this.onlyRunFirstTime) {
-        return;
-      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtStart)) {
         willFollowAnimationPoints = false;
       } else {
         if (this.supportReverse) {
           this.isReverse = false;
+          if (this.usedToRunToTheEnd) {
+            this.isAfterFirstRound = true;
+          }
+          this.currentRunTime++;
+          if (!this.canContinueToRun) {
+            return;
+          }
         }
         this.currentStep = this.maxStep;
       }
-
-    } else if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)) {
+    } else if (
+      this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)
+    ) {
       this.usedToRunToTheEnd = true;
-      if (!this.supportReverse) {
-        this.isAfterFirstTime = true;
-      }
-      if (!this.supportReverse && this.onlyRunFirstTime) {
-        return;
-      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtEnd)) {
         willFollowAnimationPoints = false;
       } else {
         if (this.supportReverse) {
           this.isReverse = true;
         } else {
+          this.isAfterFirstRound = true;
+          this.currentRunTime++;
+          if (!this.canContinueToRun) {
+            return;
+          }
           this.motionPoint = {
             x: firstPoint.x,
             y: firstPoint.y,
@@ -375,7 +380,6 @@ export class Line {
         this.currentStep = this.maxStep;
       }
     }
-
 
     if (willFollowAnimationPoints) {
       if (this.currentStep >= this.maxStep) {
@@ -408,7 +412,9 @@ export class Line {
   }
 
   followAnimationPoints() {
-    const chosenAnimationPoints = !this.isReverse ? this.animationPoints : [...this.animationPoints].reverse();
+    const chosenAnimationPoints = !this.isReverse
+      ? this.animationPoints
+      : [...this.animationPoints].reverse();
 
     for (let index = 0; index < chosenAnimationPoints.length - 1; index++) {
       const point = chosenAnimationPoints[index];
@@ -453,8 +459,11 @@ export class Line {
   }
 
   drawImage() {
-    if ((!this.isReverse && (this.moveRight === true || this.moveRight == null)) ||
-    (this.isReverse && this.moveRight === false)) {
+    if (
+      (!this.isReverse &&
+        (this.moveRight === true || this.moveRight == null)) ||
+      (this.isReverse && this.moveRight === false)
+    ) {
       this.ctx.drawImage(
         this.image,
         this.motionPoint!.x,
@@ -463,20 +472,17 @@ export class Line {
         this.imageHeight
       );
     } else {
-      this.ctx.translate(this.motionPoint!.x + this.imageWidth, this.motionPoint!.y);
+      this.ctx.translate(
+        this.motionPoint!.x + this.imageWidth,
+        this.motionPoint!.y
+      );
 
       // scaleX by -1; this "trick" flips horizontally
-      this.ctx.scale(-1,1);
+      this.ctx.scale(-1, 1);
 
       // draw the img
-      this.ctx.drawImage(
-        this.image,
-        0,
-        0,
-        this.imageWidth,
-        this.imageHeight
-      );
-      this.ctx.setTransform(1,0,0,1,0,0);
+      this.ctx.drawImage(this.image, 0, 0, this.imageWidth, this.imageHeight);
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
   }
 
@@ -543,7 +549,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   iconDict: Dictionary<Icon> = {};
   plantModel: PlantModel | null = null;
 
-  lineGroup: Dictionary<Dictionary<Line>> = {};
+  lineGroup: Dictionary<Dictionary<Line | undefined>> = {};
 
   private _selectingIconIds: string[] = [];
   get selectingIconIds(): string[] {
@@ -593,10 +599,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.componentDict[p.from],
           this.componentDict[p.to],
           this.componentDict[p.from].instance.widgetRef!,
+          p.order,
           p.imageSrc,
           p.supportReverse,
-          p.onlyRunFirstTime,
-          p.order
+          p.onlyRunFirstNTime
         );
 
         if (!this.lineGroup[p.order]) {
@@ -604,7 +610,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         }
         this.lineGroup[p.order][p.lineId] = line;
 
-        const connection =  <Connection>{
+        const connection = <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
           elTo: this.componentDict[p.to].instance.widgetRef,
@@ -639,38 +645,46 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         );
 
         var needDrawingAnimation = lines.filter(
-          line => !line.onlyRunFirstTime || !line.isAfterFirstTime);
+          (line) =>
+            line.onlyRunFirstNTime == null ||
+            (line.onlyRunFirstNTime != null &&
+              line.currentRunTime < line.onlyRunFirstNTime)
+        );
 
         let minOrder = -1;
         if (needDrawingAnimation.length > 0) {
-          minOrder = Math.min(...needDrawingAnimation.map(p => p.order));
-          const maxOrder = Math.max(...needDrawingAnimation.map(p => p.order));
+          minOrder = Math.min(...needDrawingAnimation.map((p) => p.order));
+          const maxOrder = Math.max(
+            ...needDrawingAnimation.map((p) => p.order)
+          );
 
-          while(minOrder < maxOrder) {
-            if (Object.values(this.lineGroup[minOrder]).every(line =>
-              !line.onlyRunFirstTime && line.isAfterFirstTime ||
-              (line.onlyRunFirstTime &&
-              line.isAfterFirstTime)) )
-              {
-                minOrder++;
-              }
-            else {
+          while (minOrder < maxOrder) {
+            if (
+              Object.values(this.lineGroup[minOrder]).every(
+                (line) =>
+                  (line!.onlyRunFirstNTime != null &&
+                    line!.currentRunTime >= line!.onlyRunFirstNTime) ||
+                  (line!.onlyRunFirstNTime == null && line!.usedToRunToTheEnd)
+              )
+            ) {
+              minOrder++;
+            } else {
               break;
             }
           }
         }
 
         lines.forEach((line: Line) => {
-          if (minOrder === -1 ||
+          if (
+            minOrder === -1 ||
             (this.lineGroup[minOrder][line.id] == null &&
-               (line.onlyRunFirstTime || !line.isAfterFirstTime))
-               ) {
+              (line.onlyRunFirstNTime != null || !line.usedToRunToTheEnd))
+          ) {
             line.draw(true);
           } else {
             line.draw();
           }
         });
-
       }, 1);
     });
   }
@@ -687,12 +701,15 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       p.to != null &&
       this.selectingIconIds.includes(p.from) &&
       this.selectingIconIds.includes(p.to);
-    const toDeleteConnections = this.connections.filter((p) =>
-      toDeleteConnectionConditionFunc(p)
-    );
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
+    const toDeleteConnections = this.connections.filter((p) =>
+      toDeleteConnectionConditionFunc(p)
+    );
+    toDeleteConnections.forEach((p) => {
+      this.lineGroup[p.lineInfo!.line.order][p.lineInfo!.line.id] = undefined;
+    });
     this.reDrawCanvas();
   }
 
@@ -705,6 +722,12 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
+    const toDeleteConnections = this.connections.filter((p) =>
+      toDeleteConnectionConditionFunc(p)
+    );
+    toDeleteConnections.forEach((p) => {
+      this.lineGroup[p.lineInfo!.line.order][p.lineInfo!.line.id] = undefined;
+    });
     this.selectingIconIds.forEach((p) => this.componentDict[p].destroy());
     this.selectingIconIds = [];
     this.reDrawCanvas();
@@ -803,17 +826,27 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.connections[index].elTo = result.elementRef;
         this.connections[index].to = result.id;
+        const maxOrder =
+          Object.keys(this.lineGroup).length === 0
+            ? 1
+            : Math.max(...Object.keys(this.lineGroup).map((p) => +p)) + 1;
         const line = new Line(
           this.canvasCtx!,
-          result.id,
+          Utils.generateNewId(),
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
-          this.componentDict[this.connections[index].from!].instance.widgetRef!
+          this.componentDict[this.connections[index].from!].instance.widgetRef!,
+          maxOrder,
+          '../assets/icons/forklift.jpg',
+          true,
+          null
         );
         this.connections[index].lineInfo = <LineInfo>{
           lineId: Utils.generateNewId(),
           line: line,
         };
+        this.lineGroup[line.order] = {};
+        this.lineGroup[line.order][line.id] = line;
       }
     }
 
