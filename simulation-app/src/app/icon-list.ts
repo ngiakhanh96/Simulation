@@ -76,6 +76,42 @@ export const ICONS: Icon[] = [
     id: '22',
     name: 'Bombasto2',
     duration: 3000,
-    ava: '../../assets/icons/vacuum.svg',
+    ava: '../../assets/icons/checklist.svg',
+  },
+  {
+    id: '23',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/contract.svg',
+  },
+  {
+    id: '24',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/factory.svg',
+  },
+  {
+    id: '25',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/factory2.svg',
+  },
+  {
+    id: '26',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/matza2.svg',
+  },
+  {
+    id: '27',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/warehouse.svg',
+  },
+  {
+    id: '28',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/warehouse2.svg',
   },
 ];

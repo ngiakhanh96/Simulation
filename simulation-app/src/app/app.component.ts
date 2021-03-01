@@ -37,6 +37,7 @@ export interface LineInfo {
 }
 export class Line {
   public chosenFollowXAxis: boolean = false;
+  public isAfterFirstTime: boolean = false;
 
   private motionPoint: Point | null = null;
   private get componentWidth(): number {
@@ -60,17 +61,22 @@ export class Line {
   private maxStep: number = 1;
   private currentStep: number = this.maxStep;
 
+  private usedToRunToTheEnd: boolean = false;
+
   constructor(
     private ctx: CanvasRenderingContext2D,
+    public id: string,
     private startComponent: ComponentRef<WidgetComponent>,
     private endComponent: ComponentRef<WidgetComponent>,
     private component: ElementRef<any>,
     imageSrc: string = '../assets/icons/forklift.jpg',
+    public supportReverse = true,
+    public onlyRunFirstTime = true,
+    public order: number = 1,
     public imageWidth: number = 40,
     public imageHeight: number = 40,
     public distance: number = 5,
     public color = 'black',
-    private supportReverse = true,
     private waitingDurationAtStart = 0,
     private waitingDurationAtEnd = 0,
     private speed = 1,
@@ -122,9 +128,12 @@ export class Line {
     this.buildAnimationPoints();
   }
 
-  draw() {
+  draw(cancelAnimation: boolean  = false) {
     this.drawGridLine();
-    this.drawAnimation();
+
+    if (!cancelAnimation) {
+      this.drawAnimation();
+    }
   }
 
   buildConstructionPoints(
@@ -329,6 +338,12 @@ export class Line {
     }
 
     if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, firstPoint)) {
+      if (this.supportReverse && this.usedToRunToTheEnd) {
+        this.isAfterFirstTime = true;
+      }
+      if (this.supportReverse && this.onlyRunFirstTime) {
+        return;
+      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtStart)) {
         willFollowAnimationPoints = false;
       } else {
@@ -339,6 +354,13 @@ export class Line {
       }
 
     } else if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)) {
+      this.usedToRunToTheEnd = true;
+      if (!this.supportReverse) {
+        this.isAfterFirstTime = true;
+      }
+      if (!this.supportReverse && this.onlyRunFirstTime) {
+        return;
+      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtEnd)) {
         willFollowAnimationPoints = false;
       } else {
@@ -521,6 +543,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   iconDict: Dictionary<Icon> = {};
   plantModel: PlantModel | null = null;
 
+  lineGroup: Dictionary<Dictionary<Line>> = {};
+
   private _selectingIconIds: string[] = [];
   get selectingIconIds(): string[] {
     return this._selectingIconIds;
@@ -565,11 +589,22 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       this.connections = plantConnections.map((p) => {
         const line = new Line(
           this.canvasCtx!,
+          p.lineId,
           this.componentDict[p.from],
           this.componentDict[p.to],
-          this.componentDict[p.from].instance.widgetRef!
+          this.componentDict[p.from].instance.widgetRef!,
+          p.imageSrc,
+          p.supportReverse,
+          p.onlyRunFirstTime,
+          p.order
         );
-        return <Connection>{
+
+        if (!this.lineGroup[p.order]) {
+          this.lineGroup[p.order] = {};
+        }
+        this.lineGroup[p.order][p.lineId] = line;
+
+        const connection =  <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
           elTo: this.componentDict[p.to].instance.widgetRef,
@@ -579,6 +614,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
             line: line,
           },
         };
+        return connection;
       });
 
       this.onResizeCanvas();
@@ -601,10 +637,41 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!.canvas.width,
           this.canvasCtx!.canvas.height
         );
+
+        var needDrawingAnimation = lines.filter(
+          line => !line.onlyRunFirstTime || !line.isAfterFirstTime);
+
+        let minOrder = -1;
+        if (needDrawingAnimation.length > 0) {
+          minOrder = Math.min(...needDrawingAnimation.map(p => p.order));
+          const maxOrder = Math.max(...needDrawingAnimation.map(p => p.order));
+
+          while(minOrder < maxOrder) {
+            if (Object.values(this.lineGroup[minOrder]).every(line =>
+              !line.onlyRunFirstTime && line.isAfterFirstTime ||
+              (line.onlyRunFirstTime &&
+              line.isAfterFirstTime)) )
+              {
+                minOrder++;
+              }
+            else {
+              break;
+            }
+          }
+        }
+
         lines.forEach((line: Line) => {
-          line.draw();
+          if (minOrder === -1 ||
+            (this.lineGroup[minOrder][line.id] == null &&
+               (line.onlyRunFirstTime || !line.isAfterFirstTime))
+               ) {
+            line.draw(true);
+          } else {
+            line.draw();
+          }
         });
-      }, 10);
+
+      }, 1);
     });
   }
 
@@ -738,6 +805,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         this.connections[index].to = result.id;
         const line = new Line(
           this.canvasCtx!,
+          result.id,
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
           this.componentDict[this.connections[index].from!].instance.widgetRef!
