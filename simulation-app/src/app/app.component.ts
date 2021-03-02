@@ -29,11 +29,7 @@ export interface Connection {
   from: string | null;
   elTo: ElementRef | null;
   to: string | null;
-  lineInfo: LineInfo | null;
-}
-export interface LineInfo {
-  lineId: string;
-  line: Line;
+  line: Line | null;
 }
 export class Line {
   public chosenFollowXAxis: boolean = false;
@@ -605,20 +601,14 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           p.onlyRunFirstNTime
         );
 
-        if (!this.lineGroup[p.order]) {
-          this.lineGroup[p.order] = {};
-        }
-        this.lineGroup[p.order][p.lineId] = line;
+        this.addToLineGroup(line);
 
         const connection = <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
           elTo: this.componentDict[p.to].instance.widgetRef,
           to: p.to,
-          lineInfo: <LineInfo>{
-            lineId: p.lineId,
-            line: line,
-          },
+          line: line,
         };
         return connection;
       });
@@ -631,8 +621,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       clearInterval(this.reRenderCanvasId!);
       const lines = this.connections
-        .filter((p) => p.lineInfo != null)
-        .map((p) => p.lineInfo!.line);
+        .filter((p) => p.line != null)
+        .map((p) => p.line!);
       lines.forEach((line: Line) => {
         line.rePosition();
       });
@@ -651,23 +641,23 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
               line.currentRunTime < line.onlyRunFirstNTime)
         );
 
-        let minOrder = -1;
+        let currentActiveOrder = -1;
         if (needDrawingAnimation.length > 0) {
-          minOrder = Math.min(...needDrawingAnimation.map((p) => p.order));
+          currentActiveOrder = Math.min(...needDrawingAnimation.map((p) => p.order));
           const maxOrder = Math.max(
             ...needDrawingAnimation.map((p) => p.order)
           );
 
-          while (minOrder < maxOrder) {
+          while (currentActiveOrder < maxOrder) {
             if (
-              Object.values(this.lineGroup[minOrder]).every(
+              Object.values(this.lineGroup[currentActiveOrder]).every(
                 (line) =>
                   (line!.onlyRunFirstNTime != null &&
                     line!.currentRunTime >= line!.onlyRunFirstNTime) ||
                   (line!.onlyRunFirstNTime == null && line!.usedToRunToTheEnd)
               )
             ) {
-              minOrder++;
+              currentActiveOrder++;
             } else {
               break;
             }
@@ -676,8 +666,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
         lines.forEach((line: Line) => {
           if (
-            minOrder === -1 ||
-            (this.lineGroup[minOrder][line.id] == null &&
+            currentActiveOrder === -1 ||
+            (this.lineGroup[currentActiveOrder][line.id] == null &&
               (line.onlyRunFirstNTime != null || !line.usedToRunToTheEnd))
           ) {
             line.draw(true);
@@ -708,7 +698,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toDeleteConnectionConditionFunc(p)
     );
     toDeleteConnections.forEach((p) => {
-      this.lineGroup[p.lineInfo!.line.order][p.lineInfo!.line.id] = undefined;
+      this.removeFromLineGroup(p.line!.order, p.line!.id)
     });
     this.reDrawCanvas();
   }
@@ -726,7 +716,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toDeleteConnectionConditionFunc(p)
     );
     toDeleteConnections.forEach((p) => {
-      this.lineGroup[p.lineInfo!.line.order][p.lineInfo!.line.id] = undefined;
+      this.removeFromLineGroup(p.line!.order, p.line!.id)
     });
     this.selectingIconIds.forEach((p) => this.componentDict[p].destroy());
     this.selectingIconIds = [];
@@ -744,11 +734,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toRedirectConnectionConditionFunc(p)
     );
     toRedirectConnections.forEach((p) => {
-      if (p.lineInfo) {
-        if (p.lineInfo.line.forceFollowXAxis != null) {
-          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.forceFollowXAxis;
+      if (p.line) {
+        if (p.line.forceFollowXAxis != null) {
+          p.line.forceFollowXAxis = !p.line.forceFollowXAxis;
         } else {
-          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.chosenFollowXAxis;
+          p.line.forceFollowXAxis = !p.line.chosenFollowXAxis;
         }
       }
     });
@@ -805,12 +795,12 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       from: result.id,
       elTo: null,
       to: null,
-      lineInfo: null,
+      line: null,
     });
 
     this.ngZone.runOutsideAngular(() => {
       this.mousedownId = setInterval(() => {
-        this.reRenderLines();
+        this.reDrawCanvas();
       }, 50);
     });
   }
@@ -841,12 +831,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           true,
           null
         );
-        this.connections[index].lineInfo = <LineInfo>{
-          lineId: Utils.generateNewId(),
-          line: line,
-        };
-        this.lineGroup[line.order] = {};
-        this.lineGroup[line.order][line.id] = line;
+        this.connections[index].line = line;
+        this.addToLineGroup(line);
       }
     }
 
@@ -854,7 +840,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       (p) => p.from != null && p.to != null
     );
     this.selectedIcon = result.icon;
-    this.reRenderLines();
+    this.reDrawCanvas();
   }
 
   addSelectingIconId(id: string) {
@@ -862,8 +848,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.componentDict[id].instance.isSelecting = true;
   }
 
-  reRenderLines() {
-    this.reDrawCanvas();
+  addToLineGroup(line: Line) {
+    if (this.lineGroup[line.order] == null) {
+      this.lineGroup[line.order] = {};
+    }
+    this.lineGroup[line.order][line.id] = line;
+  }
+
+  removeFromLineGroup(order: number, id: string) {
+    if (this.lineGroup[order] != null) {
+      this.lineGroup[order][id] = undefined;
+    }
   }
 
   ngOnDestroy() {
