@@ -29,197 +29,448 @@ export interface Connection {
   from: string | null;
   elTo: ElementRef | null;
   to: string | null;
-  line: LineInfo | null;
+  lineInfo: LineInfo | null;
 }
 export interface LineInfo {
   lineId: string;
-  leaderLine: LeaderLine;
-  square: Square;
+  line: Line;
 }
-export class Square {
-  private color = 'red';
-  private motionPoint: Point = { x: 0, y: 0 };
-  private startPoint: Point = { x: 500, y: 300 };
-  private endPoint: Point = { x: 400, y: 100 };
+export class Line {
+  public chosenFollowXAxis: boolean = false;
 
+  private motionPoint: Point | null = null;
+  private get componentWidth(): number {
+    return this.component.nativeElement.offsetWidth;
+  }
+  private get componentHeight(): number {
+    return this.component.nativeElement.offsetHeight;
+  }
+  private startPoint: Point = { x: 0, y: 0 };
+  private endPoint: Point = { x: 0, y: 0 };
+  private moveDown: boolean | null = null;
+  private moveRight: boolean | null = null;
+
+  private constructedPoints: Point[] = [];
+  private animationPoints: Point[] = [];
+  private image: HTMLImageElement = new Image();
+
+  private isReverse: boolean = false;
+  private lastWaitingTime: Date | null = null;
+
+  private maxStep: number = 1;
+  private currentStep: number = this.maxStep;
 
   constructor(
     private ctx: CanvasRenderingContext2D,
     private startComponent: ComponentRef<WidgetComponent>,
     private endComponent: ComponentRef<WidgetComponent>,
-    private componentWidth: number,
-    private componentHeight: number,
-    public distance: number = 10,
-    public image: HTMLImageElement = new Image,
-    public followXAxis?: boolean
+    private component: ElementRef<any>,
+    imageSrc: string = '../assets/icons/forklift.jpg',
+    public imageWidth: number = 40,
+    public imageHeight: number = 40,
+    public distance: number = 5,
+    public color = 'black',
+    private supportReverse = true,
+    private waitingDurationAtStart = 0,
+    private waitingDurationAtEnd = 0,
+    private speed = 1,
+    public forceFollowXAxis?: boolean
   ) {
+    this.ctx.strokeStyle = this.color;
+    this.image.src = imageSrc;
     this.rePosition();
   }
 
-  private calculateMotionPointY() {
-    if (this.endPoint.y >= this.startPoint.y) {
-      if (this.motionPoint.y < this.endPoint.y) {
-        this.motionPoint.y++;
-      } else {
-        this.motionPoint.y = this.endPoint.y;
-      }
-    } else {
-      if (this.motionPoint.y > this.endPoint.y) {
-        this.motionPoint.y--;
-      } else {
-        this.motionPoint.y = this.endPoint.y;
-      }
-    }
-  }
-
-  private calculateMotionPointX() {
-    if (this.endPoint.x >= this.startPoint.x) {
-      if (this.motionPoint.x < this.endPoint.x) {
-        this.motionPoint.x++;
-      } else {
-        this.motionPoint.x = this.endPoint.x;
-      }
-    } else {
-      if (this.motionPoint.x > this.endPoint.x) {
-        this.motionPoint.x--;
-      } else {
-        this.motionPoint.x = this.endPoint.x;
-      }
-    }
-  }
-
   rePosition() {
-    this.startPoint.x = this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.startPoint.y = this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.endPoint.x  = this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.endPoint.y  = this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.motionPoint = { x: 0, y: 0 };
+    this.isReverse = false;
+    this.motionPoint = null;
+    this.reCalculateStartEndPoint();
+    this.reCalculatePoints();
+  }
+
+  reCalculateStartEndPoint() {
+    this.startPoint.x =
+      this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.startPoint.y =
+      this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
+    this.endPoint.x =
+      this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
+    this.endPoint.y =
+      this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
+
+    const xDistance = this.endPoint.x - this.startPoint.x;
+    const yDistance = this.endPoint.y - this.startPoint.y;
+
+    this.moveDown = yDistance === 0 ? null : yDistance > 0;
+    this.moveRight = xDistance === 0 ? null : xDistance > 0;
+  }
+
+  reCalculatePoints() {
+    const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
+    const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+    this.chosenFollowXAxis =
+      this.forceFollowXAxis == null ||
+      deltaX <= this.componentWidth / 2 ||
+      deltaY <= this.componentHeight / 2
+        ? deltaX >= deltaY
+        : this.forceFollowXAxis;
+
+    this.buildConstructionPoints(deltaX, deltaY);
+    this.buildAnimationPoints();
   }
 
   draw() {
-    this.ctx.fillStyle = this.color;
-    const deltaX = Math.abs(this.endPoint.x - this.startPoint.x);
-    const deltaY = Math.abs(this.endPoint.y - this.startPoint.y);
-    this.ctx.beginPath();
-    this.ctx.moveTo(this.startPoint.x, this.startPoint.y);
-    const followXAxis = this.followXAxis == null || deltaX === 0 || deltaY === 0
-      ? deltaX >= deltaY
-      : this.followXAxis;
-    let immediatePoint: Point = {x: this.startPoint.x, y: this.startPoint.y};
-    if (followXAxis) {
-      if (this.startPoint.y === this.endPoint.y) {
+    this.drawGridLine();
+    this.drawAnimation();
+  }
 
+  buildConstructionPoints(
+    deltaX: number,
+    deltaY: number
+  ) {
+    const constructedPoints: Point[] = [];
+    if (this.chosenFollowXAxis) {
+      constructedPoints.push({
+        x: Math.round(
+          this.moveRight
+            ? this.startPoint.x + this.componentWidth / 2
+            : this.startPoint.x - this.componentWidth / 2
+        ),
+        y: this.startPoint.y,
+      });
+      if (this.moveDown != null) {
+        if (deltaY > this.componentHeight / 2) {
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              this.moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        } else {
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.startPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round((this.endPoint.x + this.startPoint.x) / 2),
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              this.moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        }
       } else {
-        this.ctx.lineTo(this.endPoint.x, this.startPoint.y);
-        immediatePoint = {
+        constructedPoints.push({
+          x: this.moveRight
+            ? this.endPoint.x - this.componentWidth / 2
+            : this.endPoint.x + this.componentWidth / 2,
+          y: this.endPoint.y,
+        });
+      }
+    } else {
+      constructedPoints.push({
+        x: this.startPoint.x,
+        y: Math.round(
+          this.moveDown
+            ? this.startPoint.y + this.componentHeight / 2
+            : this.startPoint.y - this.componentHeight / 2
+        ),
+      });
+      if (this.moveRight != null) {
+        if (deltaX > this.componentWidth / 2) {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: this.endPoint.y,
+          });
+          constructedPoints.push({
+            x: Math.round(
+              this.moveRight
+                ? this.endPoint.x - this.componentWidth / 2
+                : this.endPoint.x + this.componentWidth / 2
+            ),
+            y: this.endPoint.y,
+          });
+        } else {
+          constructedPoints.push({
+            x: this.startPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round((this.endPoint.y + this.startPoint.y) / 2),
+          });
+          constructedPoints.push({
+            x: this.endPoint.x,
+            y: Math.round(
+              this.moveDown
+                ? this.endPoint.y - this.componentHeight / 2
+                : this.endPoint.y + this.componentHeight / 2
+            ),
+          });
+        }
+      } else {
+        constructedPoints.push({
           x: this.endPoint.x,
-          y: this.startPoint.y
-        };
+          y: this.moveDown
+            ? this.endPoint.y - this.componentHeight / 2
+            : this.endPoint.y + this.componentHeight / 2,
+        });
+      }
+    }
+    this.constructedPoints = constructedPoints;
+  }
+
+  buildAnimationPoints() {
+    const animationPoints: Point[] = [];
+
+    for (let index = 0; index < this.constructedPoints.length - 1; index++) {
+      const point = this.constructedPoints[index];
+      const nextPoint = this.constructedPoints[index + 1];
+      const isFirstPoint = index === 0;
+      const isLastPoint = index === this.constructedPoints.length - 2;
+      const isHorizontal = nextPoint.y === point.y;
+
+      if (isFirstPoint) {
+        if (isHorizontal) {
+          animationPoints.push({
+            x: this.moveRight
+              ? point.x - this.imageWidth
+              : point.x,
+            y:
+            this.moveDown === true || this.moveDown == null
+                ? point.y - this.distance - this.imageHeight
+                : point.y + this.distance,
+          });
+        } else {
+          animationPoints.push({
+            x:
+            this.moveRight === true || this.moveRight == null
+                ? point.x + this.distance
+                : point.x - this.distance - this.imageWidth,
+            y: this.moveDown
+              ? point.y - this.imageHeight
+              : point.y,
+          });
+        }
       }
 
-      if (
-        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-        (this.motionPoint.x ===
-          (this.endPoint.x >= this.startPoint.x
-            ? this.endPoint.x + this.distance
-            : this.endPoint.x - this.distance - 5) &&
-          this.motionPoint.y === this.endPoint.y)
-      ) {
-        this.motionPoint.x = this.startPoint.x;
-        if (this.endPoint.y >= this.startPoint.y) {
-          this.motionPoint.y = this.startPoint.y - this.distance - 5;
+      const animationPoint: Point = { x: 0, y: 0 };
+      if (isHorizontal) {
+        // moveRight here is always not null
+        if (this.moveRight) {
+          if (isLastPoint) {
+            animationPoint.x = nextPoint.x;
+          } else {
+            animationPoint.x = nextPoint.x + this.distance;
+          }
         } else {
-          this.motionPoint.y = this.startPoint.y + this.distance;
+          if (isLastPoint) {
+            animationPoint.x = nextPoint.x - this.imageWidth;
+          } else {
+            animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
+          }
         }
-      } else if (this.endPoint.x >= this.startPoint.x) {
-        if (this.motionPoint.x < this.endPoint.x + this.distance) {
-          this.motionPoint.x++;
-        } else {
-          this.calculateMotionPointY();
-        }
-      } else {
-        if (this.motionPoint.x > this.endPoint.x - this.distance - 5) {
-          this.motionPoint.x--;
-        } else {
-          this.calculateMotionPointY();
-        }
-      }
-    } else {
-      if (this.startPoint.x === this.endPoint.x) {
 
+        if (this.moveDown === true || this.moveDown == null) {
+          animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
+        } else {
+          animationPoint.y = nextPoint.y + this.distance;
+        }
       } else {
-        this.ctx.lineTo(this.startPoint.x, this.endPoint.y);
-        immediatePoint = {
-          x: this.startPoint.x,
-          y: this.endPoint.y
-        };
+        if (this.moveRight === true || this.moveRight == null) {
+          animationPoint.x = nextPoint.x + this.distance;
+        } else {
+          animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
+        }
+
+        if (isLastPoint) {
+          if (this.moveDown) {
+            animationPoint.y = nextPoint.y;
+          } else {
+            animationPoint.y = nextPoint.y - this.imageHeight;
+          }
+        } else {
+          // moveDown here is always not null
+          if (this.moveDown) {
+            animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
+          } else {
+            animationPoint.y = nextPoint.y + this.distance;
+          }
+        }
       }
-      if (
-        (this.motionPoint.x === 0 && this.motionPoint.y === 0) ||
-        (this.motionPoint.y ===
-          (this.endPoint.y >= this.startPoint.y
-            ? this.endPoint.y - this.distance - 5
-            : this.endPoint.y + this.distance) &&
-          this.motionPoint.x === this.endPoint.x)
-      ) {
-        this.motionPoint.y = this.startPoint.y;
-        if (this.startPoint.x >= this.endPoint.x) {
-          this.motionPoint.x = this.startPoint.x - this.distance - 5;
-        } else {
-          this.motionPoint.x = this.startPoint.x + this.distance;
-        }
-      } else if (this.endPoint.y >= this.startPoint.y) {
-        if (this.motionPoint.y < this.endPoint.y - this.distance - 5) {
-          this.motionPoint.y++;
-        } else {
-          this.calculateMotionPointX();
-        }
+      animationPoints.push(animationPoint);
+    }
+    this.animationPoints = animationPoints;
+  }
+
+  drawAnimation() {
+    const firstPoint = this.animationPoints[0];
+    const lastPoint = this.animationPoints[this.animationPoints.length - 1];
+    let willFollowAnimationPoints = true;
+    if (this.motionPoint == null) {
+      this.motionPoint = {
+        x: firstPoint.x,
+        y: firstPoint.y,
+      };
+    }
+
+    if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, firstPoint)) {
+      if (!this.checkIfWaitingLongEnough(this.waitingDurationAtStart)) {
+        willFollowAnimationPoints = false;
       } else {
-        if (this.motionPoint.y > this.endPoint.y + this.distance) {
-          this.motionPoint.y--;
-        } else {
-          this.calculateMotionPointX();
+        if (this.supportReverse) {
+          this.isReverse = false;
         }
+        this.currentStep = this.maxStep;
+      }
+
+    } else if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)) {
+      if (!this.checkIfWaitingLongEnough(this.waitingDurationAtEnd)) {
+        willFollowAnimationPoints = false;
+      } else {
+        if (this.supportReverse) {
+          this.isReverse = true;
+        } else {
+          this.motionPoint = {
+            x: firstPoint.x,
+            y: firstPoint.y,
+          };
+        }
+        this.currentStep = this.maxStep;
       }
     }
 
-    let toX = this.endPoint.x;
-    let toY = this.endPoint.y;
-    if (followXAxis) {
-      if (this.startPoint.y === this.endPoint.y) {
-        if (this.endPoint.x >= this.startPoint.x) {
-          toX = this.endPoint.x - this.componentWidth/2;
-        } else {
-          toX = this.endPoint.x + this.componentWidth/2;
-        }
-      } else {
-        if (this.endPoint.y >= this.startPoint.y) {
-          toY = this.endPoint.y - this.componentHeight/2;
-        } else {
-          toY = this.endPoint.y + this.componentHeight/2;
-        }
-      }
 
-    } else {
-      if (this.startPoint.x === this.endPoint.x) {
-        if (this.endPoint.y >= this.startPoint.y) {
-          toY = this.endPoint.y - this.componentHeight/2;
-        } else {
-          toY = this.endPoint.y + this.componentHeight/2;
-        }
+    if (willFollowAnimationPoints) {
+      if (this.currentStep >= this.maxStep) {
+        this.followAnimationPoints();
+        this.currentStep = 0;
       } else {
-        if (this.endPoint.x >= this.startPoint.x) {
-          toX = this.endPoint.x - this.componentWidth/2;
-        } else {
-          toX = this.endPoint.x + this.componentWidth/2;
-        }
+        this.currentStep += this.speed;
       }
     }
-    this.drawArrow(immediatePoint.x, immediatePoint.y, toX, toY);
+    this.drawImage();
+    // console.log('x: ' + this.motionPoint.x + ', y: ' + this.motionPoint.y)
+  }
+
+  compareIfTwoPointsAreOverlapping(point1: Point, point2: Point): boolean {
+    return point1.x === point2.x && point1.y === point2.y;
+  }
+
+  checkIfWaitingLongEnough(duration: number): boolean {
+    if (this.lastWaitingTime == null) {
+      this.lastWaitingTime = new Date();
+      return false;
+    }
+
+    const elapsedTime = new Date().getTime() - this.lastWaitingTime.getTime();
+    if (elapsedTime >= duration) {
+      this.lastWaitingTime = null;
+      return true;
+    }
+    return false;
+  }
+
+  followAnimationPoints() {
+    const chosenAnimationPoints = !this.isReverse ? this.animationPoints : [...this.animationPoints].reverse();
+
+    for (let index = 0; index < chosenAnimationPoints.length - 1; index++) {
+      const point = chosenAnimationPoints[index];
+      const nextPoint = chosenAnimationPoints[index + 1];
+      let parameterA = 0;
+      let parameterB = 0;
+      let parameterC = 0;
+      const isHorizontal = nextPoint.y === point.y;
+      if (!isHorizontal) {
+        parameterA = 1;
+        parameterB = 0;
+        parameterC = point.x;
+      } else {
+        parameterA = 0;
+        parameterB = 1;
+        parameterC = point.y;
+      }
+      if (
+        (this.motionPoint!.x !== nextPoint.x ||
+          this.motionPoint!.y !== nextPoint.y) &&
+        parameterC ===
+          parameterA * this.motionPoint!.x + parameterB * this.motionPoint!.y
+      ) {
+        const toTheRight = nextPoint.x > point.x;
+        const toTheBottom = nextPoint.y > point.y;
+        if (isHorizontal) {
+          if (toTheRight) {
+            this.motionPoint!.x++;
+          } else {
+            this.motionPoint!.x--;
+          }
+        } else {
+          if (toTheBottom) {
+            this.motionPoint!.y++;
+          } else {
+            this.motionPoint!.y--;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  drawImage() {
+    if ((!this.isReverse && (this.moveRight === true || this.moveRight == null)) ||
+    (this.isReverse && this.moveRight === false)) {
+      this.ctx.drawImage(
+        this.image,
+        this.motionPoint!.x,
+        this.motionPoint!.y,
+        this.imageWidth,
+        this.imageHeight
+      );
+    } else {
+      this.ctx.translate(this.motionPoint!.x + this.imageWidth, this.motionPoint!.y);
+
+      // scaleX by -1; this "trick" flips horizontally
+      this.ctx.scale(-1,1);
+
+      // draw the img
+      this.ctx.drawImage(
+        this.image,
+        0,
+        0,
+        this.imageWidth,
+        this.imageHeight
+      );
+      this.ctx.setTransform(1,0,0,1,0,0);
+    }
+  }
+
+  drawGridLine() {
+    this.ctx.beginPath();
+    for (let index = 0; index < this.constructedPoints.length - 1; index++) {
+      const point = this.constructedPoints[index];
+      const nextPoint = this.constructedPoints[index + 1];
+      if (index === this.constructedPoints.length - 2) {
+        this.drawArrow(point.x, point.y, nextPoint.x, nextPoint.y);
+      } else {
+        this.ctx.moveTo(point.x, point.y);
+        this.ctx.lineTo(nextPoint.x, nextPoint.y);
+      }
+    }
     this.ctx.stroke();
-    this.image.src = '../assets/icons/conveyor.svg';
-    this.ctx.drawImage(this.image, this.motionPoint.x, this.motionPoint.y, 10, 10)
-    // this.ctx.fillRect(this.motionPoint.x, this.motionPoint.y, 5, 5);
   }
 
   drawArrow(fromx: number, fromy: number, tox: number, toy: number) {
@@ -229,9 +480,15 @@ export class Square {
     var angle = Math.atan2(dy, dx);
     this.ctx.moveTo(fromx, fromy);
     this.ctx.lineTo(tox, toy);
-    this.ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+    this.ctx.lineTo(
+      tox - headlen * Math.cos(angle - Math.PI / 6),
+      toy - headlen * Math.sin(angle - Math.PI / 6)
+    );
     this.ctx.moveTo(tox, toy);
-    this.ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+    this.ctx.lineTo(
+      tox - headlen * Math.cos(angle + Math.PI / 6),
+      toy - headlen * Math.sin(angle + Math.PI / 6)
+    );
   }
 }
 
@@ -306,24 +563,20 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       const plantConnections = this.plantModel!.plantConnections;
       this.connections = plantConnections.map((p) => {
-        const square = new Square(
+        const line = new Line(
           this.canvasCtx!,
           this.componentDict[p.from],
           this.componentDict[p.to],
-          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[p.from].instance.widgetRef!.nativeElement.offsetHeight);
+          this.componentDict[p.from].instance.widgetRef!
+        );
         return <Connection>{
           elFrom: this.componentDict[p.from].instance.widgetRef,
           from: p.from,
           elTo: this.componentDict[p.to].instance.widgetRef,
           to: p.to,
-          line: <LineInfo>{
+          lineInfo: <LineInfo>{
             lineId: p.lineId,
-            leaderLine: this.createNewConnector(
-              this.componentDict[p.from].instance.widgetRef!.nativeElement,
-              this.componentDict[p.to].instance.widgetRef!.nativeElement
-            ),
-            square: square
+            line: line,
           },
         };
       });
@@ -335,9 +588,11 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   reDrawCanvas() {
     this.ngZone.runOutsideAngular(() => {
       clearInterval(this.reRenderCanvasId!);
-      const squares = this.connections.filter(p => p.line != null).map(p => p.line!.square);
-      squares.forEach((square: Square) => {
-        square.rePosition();
+      const lines = this.connections
+        .filter((p) => p.lineInfo != null)
+        .map((p) => p.lineInfo!.line);
+      lines.forEach((line: Line) => {
+        line.rePosition();
       });
       this.reRenderCanvasId = setInterval(() => {
         this.canvasCtx!.clearRect(
@@ -346,8 +601,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.canvasCtx!.canvas.width,
           this.canvasCtx!.canvas.height
         );
-        squares.forEach((square: Square) => {
-          square.draw();
+        lines.forEach((line: Line) => {
+          line.draw();
         });
       }, 10);
     });
@@ -368,7 +623,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     const toDeleteConnections = this.connections.filter((p) =>
       toDeleteConnectionConditionFunc(p)
     );
-    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
@@ -381,10 +635,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       p.to != null &&
       (this.selectingIconIds.includes(p.from) ||
         this.selectingIconIds.includes(p.to));
-    const toDeleteConnections = this.connections.filter((p) =>
-      toDeleteConnectionConditionFunc(p)
-    );
-    toDeleteConnections.forEach((p) => p.line?.leaderLine.remove());
     this.connections = this.connections.filter(
       (p) => !toDeleteConnectionConditionFunc(p)
     );
@@ -404,10 +654,14 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toRedirectConnectionConditionFunc(p)
     );
     toRedirectConnections.forEach((p) => {
-      if (p.line) {
-        p.line.square.followXAxis = !p.line.square.followXAxis;
+      if (p.lineInfo) {
+        if (p.lineInfo.line.forceFollowXAxis != null) {
+          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.forceFollowXAxis;
+        } else {
+          p.lineInfo.line.forceFollowXAxis = !p.lineInfo.line.chosenFollowXAxis;
+        }
       }
-      });
+    });
     this.reDrawCanvas();
   }
 
@@ -461,7 +715,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       from: result.id,
       elTo: null,
       to: null,
-      line: null,
+      lineInfo: null,
     });
 
     this.ngZone.runOutsideAngular(() => {
@@ -482,20 +736,15 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.connections[index].elTo = result.elementRef;
         this.connections[index].to = result.id;
-        const line = this.createNewConnector(
-          this.connections[index].elFrom!.nativeElement,
-          this.connections[index].elTo!.nativeElement
-        );
-        const square = new Square(
+        const line = new Line(
           this.canvasCtx!,
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
-          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetWidth,
-          this.componentDict[this.connections[index].from!].instance.widgetRef!.nativeElement.offsetHeight);
-        this.connections[index].line = <LineInfo>{
+          this.componentDict[this.connections[index].from!].instance.widgetRef!
+        );
+        this.connections[index].lineInfo = <LineInfo>{
           lineId: Utils.generateNewId(),
-          leaderLine: line,
-          square: square
+          line: line,
         };
       }
     }
@@ -513,19 +762,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   reRenderLines() {
-    this.connections
-      .filter((p) => p.line != null)
-      .forEach((p) => {
-        p.line!.leaderLine.position();
-      });
     this.reDrawCanvas();
-  }
-
-  createNewConnector(startElement: Element, endElement: Element): LeaderLine {
-    return new LeaderLine(startElement, endElement, {
-      dash: { animation: true },
-      path: 'grid'
-    });
   }
 
   ngOnDestroy() {
