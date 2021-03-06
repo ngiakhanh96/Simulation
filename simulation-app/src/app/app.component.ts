@@ -36,11 +36,17 @@ export class Line {
   public isAfterFirstRound: boolean = false;
 
   private motionPoint: Point | null = null;
-  private get componentWidth(): number {
-    return this.component.nativeElement.offsetWidth;
+  private get startComponentWidth(): number {
+    return this.startComponent.nativeElement.offsetWidth;
   }
-  private get componentHeight(): number {
-    return this.component.nativeElement.offsetHeight;
+  private get startComponentHeight(): number {
+    return this.startComponent.nativeElement.offsetHeight;
+  }
+  private get endComponentWidth(): number {
+    return this.endComponent.nativeElement.offsetWidth;
+  }
+  private get endComponentHeight(): number {
+    return this.endComponent.nativeElement.offsetHeight;
   }
   private startPoint: Point = { x: 0, y: 0 };
   private endPoint: Point = { x: 0, y: 0 };
@@ -67,24 +73,33 @@ export class Line {
     );
   }
 
+  public get hasRunOnce(): boolean {
+    return this.motionPoint != null;
+  }
+
+  private startTime: Date | null = null;
+
   constructor(
     private ctx: CanvasRenderingContext2D,
     public id: string,
-    private startComponent: ComponentRef<WidgetComponent>,
-    private endComponent: ComponentRef<WidgetComponent>,
-    private component: ElementRef<any>,
+    private startComponentRef: ComponentRef<WidgetComponent>,
+    private endComponentRef: ComponentRef<WidgetComponent>,
+    private startComponent: ElementRef<any>,
+    private endComponent: ElementRef<any>,
     public order: number,
-    imageSrc: string,
+    private imageSrc: string,
     public supportReverse = true,
     public onlyRunFirstNTime: number | null = null,
-    public imageWidth: number = 40,
-    public imageHeight: number = 40,
+    public onlyInMilliseconds: number | null = null,
+    public noNeedToWait: boolean = true,
+    public forceFollowXAxis: boolean | null = null,
+    public imageWidth: number = 30,
+    public imageHeight: number = 30,
     public distance: number = 5,
     public color = 'black',
     private waitingDurationAtStart = 0,
     private waitingDurationAtEnd = 0,
-    private speed = 1,
-    public forceFollowXAxis?: boolean
+    private speed = 1
   ) {
     this.ctx.strokeStyle = this.color;
     this.image.src = imageSrc;
@@ -102,20 +117,23 @@ export class Line {
   }
 
   reCalculateStartEndPoint() {
-    this.startPoint.x =
-      this.startComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.startPoint.y =
-      this.startComponent.instance.dragPosition.y + this.componentHeight / 2;
-    this.endPoint.x =
-      this.endComponent.instance.dragPosition.x + this.componentWidth / 2;
-    this.endPoint.y =
-      this.endComponent.instance.dragPosition.y + this.componentHeight / 2;
-
     const xDistance = this.endPoint.x - this.startPoint.x;
     const yDistance = this.endPoint.y - this.startPoint.y;
 
     this.moveDown = yDistance === 0 ? null : yDistance > 0;
     this.moveRight = xDistance === 0 ? null : xDistance > 0;
+
+    this.startPoint.x =
+      this.startComponentRef.instance.dragPosition.x +
+      this.startComponentWidth / 2;
+    this.startPoint.y =
+      this.startComponentRef.instance.dragPosition.y +
+      this.startComponentHeight / 2;
+    this.endPoint.x =
+      this.endComponentRef.instance.dragPosition.x + this.endComponentWidth / 2;
+    this.endPoint.y =
+      this.endComponentRef.instance.dragPosition.y +
+      this.endComponentHeight / 2;
   }
 
   reCalculatePoints() {
@@ -126,8 +144,8 @@ export class Line {
     }
     this.chosenFollowXAxis =
       this.forceFollowXAxis == null ||
-      deltaX <= this.componentWidth / 2 ||
-      deltaY <= this.componentHeight / 2
+      deltaX <= this.endComponentWidth / 2 ||
+      deltaY <= this.endComponentHeight / 2
         ? deltaX >= deltaY
         : this.forceFollowXAxis;
 
@@ -135,11 +153,28 @@ export class Line {
     this.buildAnimationPoints();
   }
 
+  isTimeout(): boolean {
+    return (
+      this.startTime != null &&
+      this.onlyInMilliseconds != null &&
+      new Date().getTime() - this.startTime.getTime() >= this.onlyInMilliseconds
+    );
+  }
+
+  resetStartTime() {
+    this.startTime = new Date();
+  }
+
   draw(cancelAnimation: boolean = false) {
     this.drawGridLine();
 
     if (!cancelAnimation) {
-      this.drawAnimation();
+      if (!this.hasRunOnce) {
+        this.resetStartTime();
+      }
+      if (!this.isTimeout()) {
+        this.drawAnimation();
+      }
     }
   }
 
@@ -149,13 +184,13 @@ export class Line {
       constructedPoints.push({
         x: Math.round(
           this.moveRight
-            ? this.startPoint.x + this.componentWidth / 2
-            : this.startPoint.x - this.componentWidth / 2
+            ? this.startPoint.x + this.startComponentWidth / 2
+            : this.startPoint.x - this.startComponentWidth / 2
         ),
         y: this.startPoint.y,
       });
       if (this.moveDown != null) {
-        if (deltaY > this.componentHeight / 2) {
+        if (deltaY > this.endComponentHeight / 2) {
           constructedPoints.push({
             x: this.endPoint.x,
             y: this.startPoint.y,
@@ -164,8 +199,8 @@ export class Line {
             x: this.endPoint.x,
             y: Math.round(
               this.moveDown
-                ? this.endPoint.y - this.componentHeight / 2
-                : this.endPoint.y + this.componentHeight / 2
+                ? this.endPoint.y - this.endComponentHeight / 2
+                : this.endPoint.y + this.endComponentHeight / 2
             ),
           });
         } else {
@@ -180,8 +215,8 @@ export class Line {
           constructedPoints.push({
             x: Math.round(
               this.moveRight
-                ? this.endPoint.x - this.componentWidth / 2
-                : this.endPoint.x + this.componentWidth / 2
+                ? this.endPoint.x - this.endComponentWidth / 2
+                : this.endPoint.x + this.endComponentWidth / 2
             ),
             y: this.endPoint.y,
           });
@@ -189,8 +224,8 @@ export class Line {
       } else {
         constructedPoints.push({
           x: this.moveRight
-            ? this.endPoint.x - this.componentWidth / 2
-            : this.endPoint.x + this.componentWidth / 2,
+            ? this.endPoint.x - this.endComponentWidth / 2
+            : this.endPoint.x + this.endComponentWidth / 2,
           y: this.endPoint.y,
         });
       }
@@ -199,12 +234,12 @@ export class Line {
         x: this.startPoint.x,
         y: Math.round(
           this.moveDown
-            ? this.startPoint.y + this.componentHeight / 2
-            : this.startPoint.y - this.componentHeight / 2
+            ? this.startPoint.y + this.startComponentHeight / 2
+            : this.startPoint.y - this.startComponentHeight / 2
         ),
       });
       if (this.moveRight != null) {
-        if (deltaX > this.componentWidth / 2) {
+        if (deltaX > this.endComponentWidth / 2) {
           constructedPoints.push({
             x: this.startPoint.x,
             y: this.endPoint.y,
@@ -212,8 +247,8 @@ export class Line {
           constructedPoints.push({
             x: Math.round(
               this.moveRight
-                ? this.endPoint.x - this.componentWidth / 2
-                : this.endPoint.x + this.componentWidth / 2
+                ? this.endPoint.x - this.endComponentWidth / 2
+                : this.endPoint.x + this.endComponentWidth / 2
             ),
             y: this.endPoint.y,
           });
@@ -230,8 +265,8 @@ export class Line {
             x: this.endPoint.x,
             y: Math.round(
               this.moveDown
-                ? this.endPoint.y - this.componentHeight / 2
-                : this.endPoint.y + this.componentHeight / 2
+                ? this.endPoint.y - this.endComponentHeight / 2
+                : this.endPoint.y + this.endComponentHeight / 2
             ),
           });
         }
@@ -239,8 +274,8 @@ export class Line {
         constructedPoints.push({
           x: this.endPoint.x,
           y: this.moveDown
-            ? this.endPoint.y - this.componentHeight / 2
-            : this.endPoint.y + this.componentHeight / 2,
+            ? this.endPoint.y - this.endComponentHeight / 2
+            : this.endPoint.y + this.endComponentHeight / 2,
         });
       }
     }
@@ -281,44 +316,32 @@ export class Line {
       if (isHorizontal) {
         // moveRight here is always not null
         if (this.moveRight) {
-          if (isLastPoint) {
-            animationPoint.x = nextPoint.x;
-          } else {
-            animationPoint.x = nextPoint.x + this.distance;
-          }
+          animationPoint.x = isLastPoint
+            ? nextPoint.x
+            : nextPoint.x + this.distance;
         } else {
-          if (isLastPoint) {
-            animationPoint.x = nextPoint.x - this.imageWidth;
-          } else {
-            animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
-          }
+          animationPoint.x = isLastPoint
+            ? nextPoint.x - this.imageWidth
+            : nextPoint.x - this.distance - this.imageWidth;
         }
-
-        if (this.moveDown === true || this.moveDown == null) {
-          animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
-        } else {
-          animationPoint.y = nextPoint.y + this.distance;
-        }
+        animationPoint.y =
+          this.moveDown === true || this.moveDown == null
+            ? nextPoint.y - this.distance - this.imageHeight
+            : nextPoint.y + this.distance;
       } else {
-        if (this.moveRight === true || this.moveRight == null) {
-          animationPoint.x = nextPoint.x + this.distance;
-        } else {
-          animationPoint.x = nextPoint.x - this.distance - this.imageWidth;
-        }
+        animationPoint.x =
+          this.moveRight === true || this.moveRight == null
+            ? nextPoint.x + this.distance
+            : nextPoint.x - this.distance - this.imageWidth;
 
         if (isLastPoint) {
-          if (this.moveDown) {
-            animationPoint.y = nextPoint.y;
-          } else {
-            animationPoint.y = nextPoint.y - this.imageHeight;
-          }
+          animationPoint.y = this.moveDown
+            ? nextPoint.y
+            : nextPoint.y - this.imageHeight;
         } else {
-          // moveDown here is always not null
-          if (this.moveDown) {
-            animationPoint.y = nextPoint.y - this.distance - this.imageHeight;
-          } else {
-            animationPoint.y = nextPoint.y + this.distance;
-          }
+          animationPoint.y = this.moveDown
+            ? nextPoint.y - this.distance - this.imageHeight
+            : nextPoint.y + this.distance;
         }
       }
       animationPoints.push(animationPoint);
@@ -338,6 +361,9 @@ export class Line {
     }
 
     if (this.compareIfTwoPointsAreOverlapping(this.motionPoint, firstPoint)) {
+      if (!this.canContinueToRun) {
+        return;
+      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtStart)) {
         willFollowAnimationPoints = false;
       } else {
@@ -345,10 +371,10 @@ export class Line {
           this.isReverse = false;
           if (this.usedToRunToTheEnd) {
             this.isAfterFirstRound = true;
-          }
-          this.currentRunTime++;
-          if (!this.canContinueToRun) {
-            return;
+            this.currentRunTime++;
+            if (!this.canContinueToRun) {
+              return;
+            }
           }
         }
         this.currentStep = this.maxStep;
@@ -357,6 +383,9 @@ export class Line {
       this.compareIfTwoPointsAreOverlapping(this.motionPoint, lastPoint)
     ) {
       this.usedToRunToTheEnd = true;
+      if (!this.canContinueToRun) {
+        return;
+      }
       if (!this.checkIfWaitingLongEnough(this.waitingDurationAtEnd)) {
         willFollowAnimationPoints = false;
       } else {
@@ -579,7 +608,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const plantComponents = this.plantModel!.plantComponents;
     plantComponents.forEach((p) => {
-      this.createComponent(p.id, this.iconDict[p.iconId], p.location);
+      this.createComponent(
+        p.id,
+        this.iconDict[p.iconId],
+        p.width,
+        p.height,
+        p.location
+      );
     });
   }
 
@@ -595,10 +630,14 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.componentDict[p.from],
           this.componentDict[p.to],
           this.componentDict[p.from].instance.widgetRef!,
+          this.componentDict[p.to].instance.widgetRef!,
           p.order,
           p.imageSrc,
           p.supportReverse,
-          p.onlyRunFirstNTime
+          p.onlyRunFirstNTime,
+          p.onlyInMilliseconds,
+          p.noNeedToWait,
+          p.forceFollowXAxis
         );
 
         this.addToLineGroup(line);
@@ -643,7 +682,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
         let currentActiveOrder = -1;
         if (needDrawingAnimation.length > 0) {
-          currentActiveOrder = Math.min(...needDrawingAnimation.map((p) => p.order));
+          currentActiveOrder = Math.min(
+            ...needDrawingAnimation.map((p) => p.order)
+          );
           const maxOrder = Math.max(
             ...needDrawingAnimation.map((p) => p.order)
           );
@@ -652,12 +693,17 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
             if (
               Object.values(this.lineGroup[currentActiveOrder]).every(
                 (line) =>
+                  (line!.isAfterFirstRound && line!.noNeedToWait) ||
+                  line!.isTimeout() ||
                   (line!.onlyRunFirstNTime != null &&
                     line!.currentRunTime >= line!.onlyRunFirstNTime) ||
                   (line!.onlyRunFirstNTime == null && line!.usedToRunToTheEnd)
               )
             ) {
               currentActiveOrder++;
+              while (this.lineGroup[currentActiveOrder] == null) {
+                currentActiveOrder++;
+              }
             } else {
               break;
             }
@@ -668,7 +714,10 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           if (
             currentActiveOrder === -1 ||
             (this.lineGroup[currentActiveOrder][line.id] == null &&
-              (line.onlyRunFirstNTime != null || !line.usedToRunToTheEnd))
+              ((line.onlyRunFirstNTime != null &&
+                (line!.currentRunTime >= line!.onlyRunFirstNTime ||
+                  !line!.hasRunOnce)) ||
+                (line!.onlyRunFirstNTime == null && line!.usedToRunToTheEnd)))
           ) {
             line.draw(true);
           } else {
@@ -698,7 +747,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toDeleteConnectionConditionFunc(p)
     );
     toDeleteConnections.forEach((p) => {
-      this.removeFromLineGroup(p.line!.order, p.line!.id)
+      this.removeFromLineGroup(p.line!.order, p.line!.id);
     });
     this.reDrawCanvas();
   }
@@ -716,7 +765,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       toDeleteConnectionConditionFunc(p)
     );
     toDeleteConnections.forEach((p) => {
-      this.removeFromLineGroup(p.line!.order, p.line!.id)
+      this.removeFromLineGroup(p.line!.order, p.line!.id);
     });
     this.selectingIconIds.forEach((p) => this.componentDict[p].destroy());
     this.selectingIconIds = [];
@@ -748,6 +797,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   createComponent(
     id: string | null,
     icon: Icon,
+    width: number,
+    height: number,
     location: ComponentLocation = { x: 0, y: 0 }
   ) {
     const factory = this.resolver.resolveComponentFactory(WidgetComponent);
@@ -755,6 +806,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.componentRef = this.container.createComponent(factory);
     this.componentRef.instance.id = id == null ? Utils.generateNewId() : id;
     this.componentRef.instance.icon = icon;
+    this.componentRef.instance.width = width;
+    this.componentRef.instance.height = height;
     this.componentRef.instance.containerSelector =
       '.' + this.containerClassName;
     this.componentRef.instance.dragPosition = location;
@@ -826,6 +879,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
           this.componentDict[this.connections[index].from!],
           this.componentDict[this.connections[index].to!],
           this.componentDict[this.connections[index].from!].instance.widgetRef!,
+          this.componentDict[this.connections[index].to!].instance.widgetRef!,
           maxOrder,
           '../assets/icons/forklift.jpg',
           true,

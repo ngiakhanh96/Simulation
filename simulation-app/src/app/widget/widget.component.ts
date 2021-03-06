@@ -31,6 +31,8 @@ export class WidgetComponent implements OnInit {
   @Input() icon: Icon | null = null;
   @Input() containerSelector: string = '';
   @Input() isSelecting: boolean = false;
+  @Input() width: number = 120;
+  @Input() height: number = 100;
   @Output() output: EventEmitter<WidgetInfo> = new EventEmitter();
   constructor() {}
 

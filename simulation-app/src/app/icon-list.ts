@@ -114,4 +114,22 @@ export const ICONS: Icon[] = [
     duration: 3000,
     ava: '../../assets/icons/warehouse2.svg',
   },
+  {
+    id: '29',
+    name: 'Bombasto2',
+    duration: 3000,
+    ava: '../../assets/icons/cancel.svg',
+  },
+  // {
+  //   id: '30',
+  //   name: 'Bombasto2',
+  //   duration: 3000,
+  //   ava: '../../assets/icons/container-truck.svg',
+  // },
+  // {
+  //   id: '31',
+  //   name: 'Bombasto2',
+  //   duration: 3000,
+  //   ava: '../../assets/icons/worker.svg',
+  // },
 ];
