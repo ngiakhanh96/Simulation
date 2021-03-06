@@ -1,7 +1,8 @@
 .example-boundary {
   height: 76vh;
   border: 1px solid red;
-  position: relative
+  position: relative;
+  overflow: auto;
 }
 
 .configuration {
